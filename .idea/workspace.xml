@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="c0362890-ad2c-473e-8459-4c5d3c474173" name="Changes" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Enum" />
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 4
+}</component>
+  <component name="ProjectId" id="36CKmwBUurWp7QWTTDIcthI4N3F" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.Main.executor&quot;: &quot;Run&quot;,
+    &quot;Application.NodeMain.executor&quot;: &quot;Run&quot;,
+    &quot;Application.Sender.executor&quot;: &quot;Run&quot;,
+    &quot;Application.Slf4jExample.executor&quot;: &quot;Run&quot;,
+    &quot;Application.Test.executor&quot;: &quot;Run&quot;,
+    &quot;Application.Test2.executor&quot;: &quot;Run&quot;,
+    &quot;Application.client.Main.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;R:/RaftDiplomski/src/main/java/raf/rs/output&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="R:\RaftDiplomski\src\main\java\raf\rs\output" />
+      <recent name="R:\RaftDiplomski\src\main\java\raf\rs\input" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Application.client.Main">
+    <configuration name="Main" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="raf.rs.Main" />
+      <module name="RaftDiplomski" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="raf.rs.testing.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="NodeMain" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="raf.rs.node.NodeMain" />
+      <module name="RaftDiplomski" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="raf.rs.log.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Slf4jExample" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="raf.rs.testing.Slf4jExample" />
+      <module name="RaftDiplomski" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="raf.rs.testing.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test2" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="raf.rs.testing.Test2" />
+      <module name="RaftDiplomski" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="raf.rs.testing.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="client.Main" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="client.Main" />
+      <module name="RaftDiplomski" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="client.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Application.client.Main" />
+        <item itemvalue="Application.Main" />
+        <item itemvalue="Application.Test2" />
+        <item itemvalue="Application.Slf4jExample" />
+        <item itemvalue="Application.NodeMain" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-2fc7cc6b9a17-intellij.indexing.shared.core-IU-253.31033.145" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-IU-253.31033.145" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="c0362890-ad2c-473e-8459-4c5d3c474173" name="Changes" comment="" />
+      <created>1764675696771</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1764675696771</updated>
+      <workItem from="1764675699489" duration="819000" />
+      <workItem from="1765280276427" duration="3127000" />
+      <workItem from="1765286159378" duration="1581000" />
+      <workItem from="1765288075444" duration="3468000" />
+      <workItem from="1765406588885" duration="1261000" />
+      <workItem from="1766595048751" duration="5088000" />
+      <workItem from="1766689889281" duration="3326000" />
+      <workItem from="1766785697787" duration="1257000" />
+      <workItem from="1766883924716" duration="5683000" />
+      <workItem from="1766943405461" duration="10649000" />
+      <workItem from="1766995738030" duration="602000" />
+      <workItem from="1767173775669" duration="1677000" />
+      <workItem from="1771754947108" duration="5723000" />
+      <workItem from="1771798409420" duration="594000" />
+      <workItem from="1771847227930" duration="14184000" />
+      <workItem from="1771942057738" duration="7517000" />
+      <workItem from="1771950316196" duration="331000" />
+      <workItem from="1771950829039" duration="327000" />
+      <workItem from="1771951347860" duration="919000" />
+      <workItem from="1771953046613" duration="35000" />
+      <workItem from="1771953648717" duration="1000" />
+      <workItem from="1771954323195" duration="9000" />
+      <workItem from="1771954353147" duration="19000" />
+      <workItem from="1771954753043" duration="7564000" />
+      <workItem from="1772117530813" duration="27688000" />
+      <workItem from="1772459027617" duration="15227000" />
+      <workItem from="1772533264863" duration="16680000" />
+      <workItem from="1772623844623" duration="13098000" />
+      <workItem from="1772708552242" duration="24123000" />
+      <workItem from="1772753617669" duration="158000" />
+      <workItem from="1772797087299" duration="7908000" />
+      <workItem from="1772920111256" duration="2708000" />
+      <workItem from="1773061134447" duration="2387000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
