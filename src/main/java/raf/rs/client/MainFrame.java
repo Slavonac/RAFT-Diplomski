@@ -1,21 +1,16 @@
-package client;
+package raf.rs.client;
 
-import com.google.gson.Gson;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raf.rs.RPC.ClientAddMessage;
-import raf.rs.RPC.LeaderPort;
+import raf.rs.RPC.*;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.Socket;
 import java.time.LocalDateTime;
 import java.util.Random;
 
@@ -29,7 +24,6 @@ public class MainFrame extends JFrame {
     public static int leaderPort;
     private int gifId;
     private int messageId;
-    private Gson gson;
     private Random r;
 
     private static MainFrame instance;
@@ -39,25 +33,16 @@ public class MainFrame extends JFrame {
     private MainFrame() throws HeadlessException {
         this.leaderPort = 9000;
         this.port = 8999;
-        this.gson = new Gson();
         this.r = new Random();
 
-        ClientServerSocket css = new ClientServerSocket(this.port);
-        Thread th = new Thread(css);
-        th.start();
 
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 9090).usePlaintext().build();
+        RAFTGrpc.RAFTBlockingStub stub = RAFTGrpc.newBlockingStub(channel);
 
         this.setSize(800, 500);
         this.setLocationRelativeTo(this);
         this.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        this.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                super.windowClosing(e);
-                css.stopSockets();
-                th.interrupt();
-            }
-        });
+
 
         // Panel settings
         BorderLayout borderLayout = new BorderLayout();
@@ -89,19 +74,7 @@ public class MainFrame extends JFrame {
         });
         JButton getLeader = new JButton("Refresh");
         getLeader.addActionListener(_ -> {
-            LeaderPort lp = new LeaderPort(this.port);
-            Socket s;
-            try {
-                System.out.println(leaderPort);
-                s = new Socket("localhost", leaderPort);
-                PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
-                pw.println(gson.toJson(lp));
-                pw.close();
-                s.close();
 
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
         });
 
 
@@ -136,19 +109,7 @@ public class MainFrame extends JFrame {
             @Override
             public void keyTyped(KeyEvent e) {
                 if (e.getKeyChar() == KeyEvent.VK_ENTER) {
-                    try {
-                        Socket s = new Socket("localhost", leaderPort);
-                        PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
-                        ClientAddMessage clientMsg = new ClientAddMessage(port, r.nextInt(0,9999999), username, messageTextField.getText(), -1);
-                        String msg = gson.toJson(clientMsg);
-                        pw.println(msg);
-                        System.out.println(msg);
-                        pw.close();
 
-                        s.close();
-                    } catch (IOException ex) {
-                        throw new RuntimeException(ex);
-                    }
                 }
             }
 

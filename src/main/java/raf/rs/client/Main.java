@@ -1,4 +1,4 @@
-package client;
+package raf.rs.client;
 
 public class Main {
 

@@ -1,21 +1,17 @@
 package raf.rs.node;
 
+import io.grpc.*;
+import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raf.rs.RPC.AppendEntries;
-import raf.rs.RPC.ClientAddMessage;
-import raf.rs.RPC.RequestVote;
-import raf.rs.log.LogEntry;
+import raf.rs.RPC.*;
 import raf.rs.log.StateMachine;
 import raf.rs.log.commands.AddMessageCommand;
 import raf.rs.util.NodeState;
 
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -23,11 +19,11 @@ public class Node {
 
     private int port;
 
-    private final Thread socketThread;
-    private final MessageSender ms;
     private final ScheduledExecutorService timeoutScheduler;
     private final ScheduledExecutorService heartbeatScheduler;
     private ScheduledFuture<?> task;
+    private final Map<Integer, ManagedChannel> managedChannelMap;
+    private final Map<Integer, RAFTGrpc.RAFTStub> stubMap;
 
     private int currentTerm;
     private int votedFor;
@@ -47,13 +43,14 @@ public class Node {
     private static final Logger logger = LoggerFactory.getLogger(Node.class);
 
     private NodeState nodeState = NodeState.FOLLOWER;
-    private final Object stateLock = new Object();
+    private final Object stateChange = new Object();
 
-    public Node(int nodeNum) {
+    public Node(int nodeNum) throws IOException {
 
         // Node configuration
         port = -1;
-        List<Integer> nodes = new ArrayList<>();
+        managedChannelMap = new HashMap<>();
+        stubMap = new HashMap<>();
 
         Properties props = new Properties();
         try (InputStream in = new FileInputStream("io/config.properties")) {
@@ -66,141 +63,160 @@ public class Node {
 
         for (int i = 0; i < numberOfNodes; i++) {
             int portAddress = Integer.parseInt(props.getProperty("node" + i));
-            if(i == nodeNum) port = portAddress; else nodes.add(portAddress);
+            if(i == nodeNum) port = portAddress;
+            else {
+                ManagedChannel channel = Grpc.newChannelBuilder("localhost:" + portAddress, InsecureChannelCredentials.create()).build();
+                RAFTGrpc.RAFTStub stub = RAFTGrpc.newStub(channel);
+                managedChannelMap.put(portAddress, channel);
+                stubMap.put(portAddress, stub);
+            }
         }
+        Server server = ServerBuilder.forPort(port).addService(new NodeRPCService(this)).build().start();
 
         // Node values
         currentTerm = 0;
         votedFor = -1;
         log = new ArrayList<>();
 
-        // Thread for receiving messages
-        SocketListener sl = new SocketListener(port, this);
-        socketThread = new Thread(sl);
-        socketThread.start();
-
-        // Sending messages
-        ms = new MessageSender(nodes, this);
-
         // Scheduler for node timeout
         timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
         heartbeatScheduler = Executors.newScheduledThreadPool(4);
         startTimeoutTimer();
-
     }
 
     // Timeout mechanism
     private void startTimeoutTimer() {
         Random r = new Random();
         task = timeoutScheduler.schedule(() -> {
-            if (nodeState.equals(NodeState.LEADER)) return;
-            logger.info("NODE TIMEOUT");
-            synchronized (this) {
+            synchronized (stateChange) {
+                if (nodeState.equals(NodeState.LEADER)) return;
                 ++this.currentTerm;
                 this.nodeState = NodeState.CANDIDATE;
                 this.votedFor = this.port;
-                this.voteCount.incrementAndGet();
+                this.voteCount.set(1);
             }
+            logger.info("NODE TIMEOUT CurrTerm:" + this.currentTerm);
             resetElectionTimeout();
-            ms.requestVote();
+            requestVote();
         }, 150 + r.nextInt(150), TimeUnit.MILLISECONDS);
     }
-
     public synchronized void resetElectionTimeout() {
         if(!task.isDone())
             task.cancel(true);
         startTimeoutTimer();
     }
 
-    // Voting
-
-    public void requestVoteRPC(RequestVote message) {
-        synchronized (this) {
-
-            // Candidate's term is lower than the current server term, rejects the request
-            if (message.getTerm() < this.currentTerm){
-                ms.submitVote(message.getCandidateId(), currentTerm, false);
-                return;
-            }
-            // If this node is leader/candidate with lower term, revert to follower
-            if (message.getTerm() > this.currentTerm)
-                this.nodeState = NodeState.FOLLOWER;
-            // Valid request received, timeout timer restarted
-            resetElectionTimeout();
-            // New term, reset vote
-            if (message.getTerm() != this.currentTerm) {
-                this.votedFor = -1;
-            }
-            // Update term from a message
-            this.currentTerm = message.getTerm();
-            // Already voted, send false
-            if(votedFor != -1) {
-                ms.submitVote(message.getCandidateId(), currentTerm, false);
-                return;
-            }
-
-            // TODO: Glasati ne ako se log poklapa lose
-
-            this.votedFor = message.getCandidateId();
-            ms.submitVote(message.getCandidateId(),  this.currentTerm, true);
+    private void requestVote() {
+        for (Integer port : stubMap.keySet()){
+            RequestVoteReq req = RequestVoteReq.newBuilder()
+                    .setTerm(currentTerm)
+                    .setLastLogIndex(getLastLogIndex())
+                    .setLastLogTerm(getLastLogTerm())
+                    .setCandidateId(this.port).build();
+            logger.info("Requesting vote for node: " + port);
+            stubMap.get(port).requestVote(req, new StreamObserver<>() {
+                @Override
+                public void onNext(RequestVoteRes res) {
+                    voteResult(res.getVoteGranted(), (int) res.getTerm(), port);
+                }
+                @Override
+                public void onError(Throwable throwable) { System.err.println("RPC failed " + throwable.getMessage()); }
+                @Override
+                public void onCompleted() {}
+            });
         }
     }
 
-    public void voteResult(boolean voteGranted, int term) {
+    // Voting
+    public void voteResult(boolean voteGranted, int term, int port) {
         if (nodeState != NodeState.CANDIDATE)
             return;
         if (term > this.currentTerm) {
-            this.nodeState = NodeState.FOLLOWER;
-            this.currentTerm = term;
+            logger.info("Node: " + port + " is higher term: " + term + " Old term is: " + this.currentTerm + " reverting to Follower");
+            synchronized (stateChange) {
+                this.nodeState = NodeState.FOLLOWER;
+                this.currentTerm = term;
+            }
             return;
         }
-        if (voteGranted) {
+        if (voteGranted && term == this.currentTerm) {
+            logger.info("Vote granted by node: " + port + " in term: " + term);
             int count = this.voteCount.incrementAndGet();
-            if (count > 2) {
+            if (count > (stubMap.size() + 1) / 2) {
                 becomeLeader();
             }
         }
     }
 
-    // AppendEntries
-    public void appendEntries(AppendEntries entries) {
-        this.leaderPort = entries.getLeaderId();
-        this.resetElectionTimeout();
-    }
-
-    public void addClientRequest(ClientAddMessage message) {
-        LogEntry logEntry = new LogEntry(this.currentTerm, new AddMessageCommand(message));
-        this.log.add(logEntry);
-    }
-
-
     public void becomeLeader() {
-        if(this.nodeState.equals(NodeState.LEADER))
-            return;
-        this.nodeState = NodeState.LEADER;
+        synchronized (stateChange) {
+            if(this.nodeState.equals(NodeState.LEADER))
+                return;
+            this.nodeState = NodeState.LEADER;
+        }
         //this.voteCount.set(0);
         logger.info("Leader elected");
         this.leaderPort = this.port;
         heartbeatScheduler.scheduleAtFixedRate(() -> {
-            ms.appendEntries(this.currentTerm, this.leaderPort);
+            for (Integer port : stubMap.keySet()) {
+                LogEntry logEntry = LogEntry.newBuilder().build();
+                AppendEntriesReq req = AppendEntriesReq.newBuilder()
+                        .setTerm(currentTerm)
+                        .setLeaderId(this.port)
+                        .setPrevLogIndex(0)
+                        .setPrevLogTerm(0)
+                        //.setEntries(1, logEntry)
+                        .setLeaderCommit(commitIndex)
+                        .build();
+                stubMap.get(port).appendEntries(req, new StreamObserver<>() {
+                    @Override
+                    public void onNext(AppendEntriesRes res) {
+                        synchronized (stateChange) {
+                            if (res.getTerm() > currentTerm){
+                                nodeState = NodeState.FOLLOWER;
+                                logger.info("There is a node with higher term " + res.getTerm() + " > " + currentTerm + ". reverting to follower");
+                            }
+                        }
+                    }
+                    @Override
+                    public void onError(Throwable throwable) {}
+
+                    @Override
+                    public void onCompleted() {}
+                });
+            }
         }, 0, 50, TimeUnit.MILLISECONDS);
     }
 
-    public void sendLeaderPort(int port) throws IOException {
-        ms.giveLeaderAddress(port);
+    public int getLastLogIndex() {
+        int lastIndex = 0;
+        if(!log.isEmpty()){
+            lastIndex = (int) log.getLast().getIndex();
+        }
+        return lastIndex;
     }
-
-    // Stops nodes
-    public void stopNode() {
-        timeoutScheduler.shutdownNow();
-        heartbeatScheduler.shutdownNow();
-        socketThread.interrupt();
-        ms.closeExec();
-        ms.closeActiveSockets();
+    public int getLastLogTerm() {
+        int lastTerm = 0;
+        if(!log.isEmpty()){
+            lastTerm = (int) log.getLast().getTerm();
+        }
+        return lastTerm;
     }
-
     public int getPort() { return port; }
     public int getTerm() { return this.currentTerm; }
-    public int getLeaderPort() { return this.leaderPort; }
+    public void setCurrentTerm(int currentTerm) { this.currentTerm = currentTerm; }
+    public int getVotedFor() { return votedFor; }
+    public void setVotedFor(int votedFor) { this.votedFor = votedFor; }
+    public NodeState getNodeState() { return nodeState; }
+    public void setNodeState(NodeState nodeState) { this.nodeState = nodeState; }
+    public Object getStateChange() { return stateChange; }
 
+    public void shutdown() {
+        heartbeatScheduler.shutdownNow();
+        timeoutScheduler.shutdown();
+        task.cancel(true);
+        for (Integer port : this.managedChannelMap.keySet()) {
+            this.managedChannelMap.get(port).shutdownNow();
+        }
+    }
 }

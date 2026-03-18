@@ -1,14 +1,19 @@
-13:09:32.623 [pool-3-thread-1] INFO  raf.rs.node.Node - NODE TIMEOUT
-13:09:32.629 [pool-2-thread-1] INFO  raf.rs.node.SocketListener - Requested vote... 1 9002 0 0
-13:09:32.632 [pool-3-thread-1] INFO  raf.rs.node.MessageSender - Reqesting vote for node: 9000
-13:09:32.633 [pool-2-thread-1] INFO  raf.rs.node.MessageSender - Submitting vote...
-13:09:32.633 [pool-3-thread-1] INFO  raf.rs.node.MessageSender - Reqesting vote for node: 9002
-13:09:32.634 [pool-3-thread-1] INFO  raf.rs.node.MessageSender - Reqesting vote for node: 9003
-13:09:32.634 [pool-3-thread-1] INFO  raf.rs.node.MessageSender - Reqesting vote for node: 9004
-13:09:32.648 [pool-2-thread-2] INFO  raf.rs.node.SocketListener - Node: 9003 voted for term: 1 vote granted: false
-13:09:32.648 [pool-2-thread-3] INFO  raf.rs.node.SocketListener - Node: 9000 voted for term: 1 vote granted: false
-13:09:32.649 [pool-2-thread-4] INFO  raf.rs.node.SocketListener - Node: 9004 voted for term: 1 vote granted: false
-13:09:32.649 [pool-2-thread-4] INFO  raf.rs.node.SocketListener - Requested vote... 1 9004 0 0
-13:09:32.650 [pool-2-thread-4] INFO  raf.rs.node.MessageSender - Submitting vote...
-13:09:32.672 [pool-2-thread-1] INFO  raf.rs.node.SocketListener - Node: 9002 voted for term: 1 vote granted: false
-13:10:57.160 [pool-2-thread-5] INFO  raf.rs.node.SocketListener - Stopping node...
+23:08:52.606 [pool-2-thread-1] INFO  raf.rs.node.Node - NODE TIMEOUT CurrTerm:1
+23:08:52.616 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9000
+23:08:52.630 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9002
+23:08:52.631 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9003
+23:08:52.632 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9004
+23:08:52.829 [pool-2-thread-1] INFO  raf.rs.node.Node - NODE TIMEOUT CurrTerm:2
+23:08:52.830 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9000
+23:08:52.832 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9002
+23:08:52.840 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9003
+23:08:52.842 [pool-2-thread-1] INFO  raf.rs.node.Node - Requesting vote for node: 9004
+23:08:52.976 [grpc-default-executor-11] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9002 2 0 0 Voting false. Smaller term.
+23:08:52.976 [grpc-default-executor-2] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9002 1 0 0 Voting false. Smaller term.
+23:08:52.977 [grpc-default-executor-0] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9003 2 0 0 Voting false. Smaller term.
+23:08:52.977 [grpc-default-executor-4] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9004 2 0 0 Voting false. Smaller term.
+23:08:52.977 [grpc-default-executor-3] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9004 1 0 0 Voting false. Smaller term.
+23:08:52.977 [grpc-default-executor-10] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9000 1 0 0 Voting false. Smaller term.
+23:08:52.977 [grpc-default-executor-1] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9003 1 0 0 Voting false. Smaller term.
+23:08:53.014 [grpc-default-executor-8] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9000 2 0 0 Voting false. Already voted for: 9001 in term: 2
+23:08:53.015 [grpc-default-executor-9] INFO  raf.rs.node.NodeRPCService - CurrTerm:2 Vote requested by: 9003 3 0 0 Voting true. Node 9003 term: 3

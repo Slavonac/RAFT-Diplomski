@@ -1,10 +1,11 @@
 package raf.rs;
 
-import com.google.gson.Gson;
-import raf.rs.RPC.Stop;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import raf.rs.RPC.RAFTGrpc;
+import raf.rs.RPC.StopReq;
 
 import java.io.*;
-import java.net.Socket;
 import java.util.Properties;
 import java.util.Scanner;
 
@@ -39,12 +40,10 @@ public class Main {
             String line = sc.nextLine();
             if (line.equals("stop")){
                 for (int i = 0; i < numOfNodes; i++){
-                    try (Socket socket = new Socket("localhost", Integer.parseInt(props.getProperty("node" + i)));PrintWriter out = new PrintWriter(socket.getOutputStream(), true)){
-                        Gson gson = new Gson();
-                        out.println(gson.toJson(new Stop()));
-                    } catch (IOException e) {
-                        System.out.println("Node on port already down");
-                    }
+                    ManagedChannel mc = ManagedChannelBuilder.forAddress("localhost", Integer.parseInt(props.getProperty("node" + i))).usePlaintext().build();
+                    RAFTGrpc.RAFTBlockingStub stub = RAFTGrpc.newBlockingStub(mc);
+                    System.out.println(stub.stop(StopReq.newBuilder().build()).getMessage());
+                    mc.shutdownNow();
                 }
                 break;
             }
