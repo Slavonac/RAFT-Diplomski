@@ -1,4 +1,9 @@
 raft-cluster/target/
+raft-cluster/io/
+
+### IntelliJ IDEA (full folder) ###
+.idea/
+raft-cluster/.idea/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
