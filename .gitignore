@@ -1,4 +1,5 @@
 raft-cluster/target/
+node_modules/
 raft-cluster/io/
 
 ### IntelliJ IDEA (full folder) ###
