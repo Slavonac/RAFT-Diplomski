@@ -5,6 +5,7 @@ option java_multiple_files = true;
 service RAFT {
   rpc AppendEntries(AppendEntriesReq) returns (AppendEntriesRes);
   rpc RequestVote(RequestVoteReq) returns (RequestVoteRes);
+  rpc ClientCommand (Command) returns (ClientMessageRes);
   rpc Stop(StopReq) returns (StopRes);
 }
 message AppendEntriesReq {
@@ -12,14 +13,26 @@ message AppendEntriesReq {
   int64 leaderId = 2;
   int64 prevLogIndex = 3;
   int64 prevLogTerm = 4;
-  repeated LogEntry entries = 5;
+  optional LogEntry entry = 5;
   int64 leaderCommit = 6;
 }
 message LogEntry {
   int64 index = 1;
   int64 term = 2;
-  string command = 3;
+  Command command = 3;
 }
+message Command {
+  oneof type {
+    AddCommand addCommand = 1;
+  }
+}
+message AddCommand {
+  int32  messageId = 1;
+  string user      = 2;
+  string message   = 3;
+  string timestamp = 4;
+}
+
 message AppendEntriesRes {
   int64 term = 1;
   bool success = 2;
@@ -37,4 +50,8 @@ message RequestVoteRes {
 message StopReq {}
 message StopRes {
   string message = 1;
+}
+message ClientMessageRes{
+  bool   success = 1;
+  string info    = 2;
 }

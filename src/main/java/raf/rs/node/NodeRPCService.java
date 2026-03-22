@@ -18,18 +18,33 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
     @Override
     public void appendEntries(AppendEntriesReq request, StreamObserver<AppendEntriesRes> responseObserver) {
         node.resetElectionTimeout();
+        node.setLeaderPort((int) request.getLeaderId());
+        node.setCurrentTerm((int) request.getTerm());
         synchronized (node.getStateChange()) {
             if (node.getNodeState().equals(NodeState.LEADER) && request.getTerm() > node.getTerm()) {
                 node.setNodeState(NodeState.FOLLOWER);
                 logger.info("Recognizing higher leader term " + request.getTerm() + " > " + node.getTerm() + ". Reverting to follower state");
             }
         }
-        responseObserver.onNext(AppendEntriesRes.newBuilder().setTerm(node.getTerm()).setSuccess(true).build());
-        responseObserver.onCompleted();
+        LogEntry entry = request.getEntry();
+        long prevIndex = request.getPrevLogIndex();
+        long prevTerm = request.getPrevLogTerm();
+
+        if (node.checkIfPrevLogMatches((int) prevTerm, (int) prevIndex)){
+            if (request.hasEntry()){
+                logger.info("Replicating log...");
+                node.addReplicatedLog(entry);
+            }
+            responseObserver.onNext(AppendEntriesRes.newBuilder().setTerm(node.getTerm()).setSuccess(true).build());
+            responseObserver.onCompleted();
+        } else {
+            responseObserver.onNext(AppendEntriesRes.newBuilder().setTerm(node.getTerm()).setSuccess(false).build());
+            responseObserver.onCompleted();
+        }
     }
 
     @Override
-    public void requestVote(RequestVoteReq request, StreamObserver<RequestVoteRes> responseObserver) {
+    public synchronized void requestVote(RequestVoteReq request, StreamObserver<RequestVoteRes> responseObserver) {
         String voteNode = "CurrTerm:" + this.node.getTerm() + " Vote requested by: " + request.getCandidateId() + " " + request.getTerm() + " " + request.getLastLogTerm() + " " + request.getLastLogIndex();
         RequestVoteRes.Builder builder = RequestVoteRes.newBuilder();
         // Candidate's term is lower than the current server term, rejects the request
@@ -40,7 +55,7 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             return;
         }
         // If this node is leader/candidate with lower term, revert to follower
-        if (request.getTerm() > node.getTerm())
+        if (request.getTerm() > node.getTerm() && !node.getNodeState().equals(NodeState.FOLLOWER))
             node.setNodeState(NodeState.FOLLOWER);
         // Valid request received, timeout timer restarted
         node.resetElectionTimeout();
@@ -57,12 +72,23 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             responseObserver.onCompleted();
             return;
         }
-
         // TODO: Glasati ne ako se log poklapa lose
-
         node.setVotedFor((int) request.getCandidateId());
         logger.info(voteNode + " Voting true. Node " + node.getVotedFor() + " term: " + node.getTerm());
         responseObserver.onNext(builder.setTerm(node.getTerm()).setVoteGranted(true).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void clientCommand(Command request, StreamObserver<ClientMessageRes> responseObserver) {
+        if (!node.getNodeState().equals(NodeState.LEADER)) {
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo(node.getLeaderPort() + "").setSuccess(false).build());
+            responseObserver.onCompleted();
+            return;
+        }
+        logger.info("Command received...");
+        node.addEntry(request);
+        responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("zz").setSuccess(true).build());
         responseObserver.onCompleted();
     }
 

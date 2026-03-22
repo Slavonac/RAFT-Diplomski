@@ -5,8 +5,8 @@ import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import raf.rs.RPC.*;
+import raf.rs.log.Log;
 import raf.rs.log.StateMachine;
-import raf.rs.log.commands.AddMessageCommand;
 import raf.rs.util.NodeState;
 
 import java.io.*;
@@ -17,27 +17,33 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Node {
 
+    private int nodeId;
+    private final int clusterSize;
     private int port;
 
+    private final Server server;
     private final ScheduledExecutorService timeoutScheduler;
     private final ScheduledExecutorService heartbeatScheduler;
     private ScheduledFuture<?> task;
     private final Map<Integer, ManagedChannel> managedChannelMap;
     private final Map<Integer, RAFTGrpc.RAFTStub> stubMap;
+    private final Map<Integer, Integer> portNodeIdMap;
+    private final int timeoutTime;
+    private final int heartbeatTime;
 
     private int currentTerm;
     private int votedFor;
     private int leaderPort;
 
-    private final List<LogEntry> log;
+    private final Log log;
 
     private int commitIndex;
     private int lastApplied;
 
-    private String[] nextIndex;
-    private String[] matchIndex;
+    private final List<Integer> nextIndex;
+    private final List<Integer> matchIndex;
 
-    private StateMachine stateMachine;
+    private final StateMachine stateMachine;
 
     private final AtomicInteger voteCount = new AtomicInteger(0);
     private static final Logger logger = LoggerFactory.getLogger(Node.class);
@@ -45,12 +51,18 @@ public class Node {
     private NodeState nodeState = NodeState.FOLLOWER;
     private final Object stateChange = new Object();
 
-    public Node(int nodeNum) throws IOException {
+    public static void start(Integer nodeNum) throws IOException {
+        new Node(nodeNum);
+    }
 
+    private Node(int nodeNum) throws IOException {
         // Node configuration
         port = -1;
         managedChannelMap = new HashMap<>();
         stubMap = new HashMap<>();
+        portNodeIdMap = new HashMap<>();
+        timeoutTime = 150;
+        heartbeatTime = 50;
 
         Properties props = new Properties();
         try (InputStream in = new FileInputStream("io/config.properties")) {
@@ -58,32 +70,43 @@ public class Node {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        int numberOfNodes = Integer.parseInt(props.getProperty("nodes"));
-
-        for (int i = 0; i < numberOfNodes; i++) {
+        clusterSize = Integer.parseInt(props.getProperty("nodes"));
+        for (int i = 0; i < clusterSize; i++) {
             int portAddress = Integer.parseInt(props.getProperty("node" + i));
-            if(i == nodeNum) port = portAddress;
+            portNodeIdMap.put(portAddress, i);
+            if(i == nodeNum) {
+                nodeId = i;
+                port = portAddress;
+            }
             else {
-                ManagedChannel channel = Grpc.newChannelBuilder("localhost:" + portAddress, InsecureChannelCredentials.create()).build();
+                ManagedChannel channel = Grpc.newChannelBuilder(props.getProperty("host") + ":" + portAddress, InsecureChannelCredentials.create()).build();
                 RAFTGrpc.RAFTStub stub = RAFTGrpc.newStub(channel);
                 managedChannelMap.put(portAddress, channel);
                 stubMap.put(portAddress, stub);
             }
         }
-        Server server = ServerBuilder.forPort(port).addService(new NodeRPCService(this)).build().start();
+        server = ServerBuilder.forPort(port).addService(new NodeRPCService(this)).build().start();
 
         // Node values
+        nextIndex = new ArrayList<>();
+        matchIndex = new ArrayList<>();
+        for (int i = 0; i < clusterSize; i++) {
+            nextIndex.add(1);
+            matchIndex.add(0);
+        }
+       // logger.info(Arrays.toString(nextIndex.toArray()) + " " + Arrays.toString(matchIndex.toArray()));
+        commitIndex = 0;
+        lastApplied = 0;
         currentTerm = 0;
         votedFor = -1;
-        log = new ArrayList<>();
+        log = new Log();
+        stateMachine = new StateMachine();
 
         // Scheduler for node timeout
         timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
         heartbeatScheduler = Executors.newScheduledThreadPool(4);
         startTimeoutTimer();
     }
-
     // Timeout mechanism
     private void startTimeoutTimer() {
         Random r = new Random();
@@ -98,36 +121,94 @@ public class Node {
             logger.info("NODE TIMEOUT CurrTerm:" + this.currentTerm);
             resetElectionTimeout();
             requestVote();
-        }, 150 + r.nextInt(150), TimeUnit.MILLISECONDS);
+        }, timeoutTime + r.nextInt(150), TimeUnit.MILLISECONDS);
     }
     public synchronized void resetElectionTimeout() {
         if(!task.isDone())
             task.cancel(true);
         startTimeoutTimer();
     }
-
-    private void requestVote() {
-        for (Integer port : stubMap.keySet()){
-            RequestVoteReq req = RequestVoteReq.newBuilder()
+    // Optimization needed, can't do this whole synchronized
+    public synchronized void addEntry(Command command) {
+        LogEntry entry = LogEntry.newBuilder()
+                .setTerm(this.getTerm())
+                .setIndex(this.log.getIndexForNextEntry())
+                .setCommand(Command.newBuilder().setAddCommand(command.getAddCommand())).build();
+        this.log.add(entry);
+        matchIndex.set(nodeId, matchIndex.get(nodeId) + 1);
+        logger.info("Adding command to the log");
+        appendEntry(entry);
+    }
+    private void appendEntry(LogEntry entry) {
+        for (Integer port : stubMap.keySet()) {
+            AppendEntriesReq req = AppendEntriesReq.newBuilder()
                     .setTerm(currentTerm)
-                    .setLastLogIndex(getLastLogIndex())
-                    .setLastLogTerm(getLastLogTerm())
-                    .setCandidateId(this.port).build();
-            logger.info("Requesting vote for node: " + port);
-            stubMap.get(port).requestVote(req, new StreamObserver<>() {
+                    .setLeaderId(this.port)
+                    .setLeaderCommit(this.commitIndex)
+                    .setPrevLogTerm(getPrevLogTerm(port))
+                    .setPrevLogIndex(getPrevLogIndex(port))
+                    .setEntry(entry)
+                    .build();
+            Context.current().fork().run(() -> stubMap.get(port).appendEntries(req, new StreamObserver<>() {
                 @Override
-                public void onNext(RequestVoteRes res) {
-                    voteResult(res.getVoteGranted(), (int) res.getTerm(), port);
+                public void onNext(AppendEntriesRes res) {
+                    if (res.getSuccess()) {
+                        logger.info("Successfully replicated log to node: " + port);
+                        int nodeNumer = portNodeIdMap.get(port);
+                        nextIndex.set(nodeNumer, nextIndex.get(nodeNumer) + 1);
+                        matchIndex.set(nodeNumer, matchIndex.get(nodeNumer) + 1);
+                        updateCommitIndex(); 
+                    } else {
+                        logger.info("Unsuccessfully replicated log");
+                        int index = portNodeIdMap.get(port);
+                        nextIndex.set(index, nextIndex.get(index) - 1);
+                    }
                 }
                 @Override
-                public void onError(Throwable throwable) { System.err.println("RPC failed " + throwable.getMessage()); }
+                public void onError(Throwable throwable) {
+                    System.out.println(throwable.getMessage());
+                }
                 @Override
                 public void onCompleted() {}
+            }));
+        }
+    }
+    public synchronized void updateCommitIndex() {
+        int count = 0;
+        for (int i = 0; i < matchIndex.size() - 1;  i++) {
+            if (matchIndex.get(i) > commitIndex) count++;
+        }
+        if (count > (matchIndex.size() / 2) + 1){
+            commitIndex++;
+            logger.info("Commit index increaded...Applying to state machine");
+            stateMachine.applyCommand(log.getCommand(commitIndex));
+            logger.info("Applied to the state machine");
+            lastApplied = commitIndex;
+        }
+    }
+    // Voting mechanism
+    private void requestVote() {
+        for (Integer port : stubMap.keySet()){
+            Context.current().fork().run(() -> {
+                RequestVoteReq req = RequestVoteReq.newBuilder()
+                        .setTerm(currentTerm)
+                        .setLastLogIndex(0)
+                        .setLastLogTerm(0)
+                        .setCandidateId(this.port).build();
+                logger.info("Requesting vote for node: " + port);
+                stubMap.get(port).requestVote(req, new StreamObserver<>() {
+                    @Override
+                    public void onNext(RequestVoteRes res) {
+                        voteResult(res.getVoteGranted(), (int) res.getTerm(), port);
+                    }
+                    @Override
+                    public void onError(Throwable throwable) { System.err.println("RPC vote request failed " + throwable.getMessage()); }
+                    @Override
+                    public void onCompleted() {}
+                });
             });
         }
     }
-
-    // Voting
     public void voteResult(boolean voteGranted, int term, int port) {
         if (nodeState != NodeState.CANDIDATE)
             return;
@@ -147,25 +228,27 @@ public class Node {
             }
         }
     }
-
     public void becomeLeader() {
         synchronized (stateChange) {
             if(this.nodeState.equals(NodeState.LEADER))
                 return;
             this.nodeState = NodeState.LEADER;
         }
-        //this.voteCount.set(0);
         logger.info("Leader elected");
         this.leaderPort = this.port;
+        for (int i = 0; i < stubMap.size(); i++) {
+            // Replace with next log index
+            nextIndex.set(i, 1);
+            matchIndex.set(i, 0);
+        }
+
         heartbeatScheduler.scheduleAtFixedRate(() -> {
             for (Integer port : stubMap.keySet()) {
-                LogEntry logEntry = LogEntry.newBuilder().build();
                 AppendEntriesReq req = AppendEntriesReq.newBuilder()
                         .setTerm(currentTerm)
                         .setLeaderId(this.port)
                         .setPrevLogIndex(0)
                         .setPrevLogTerm(0)
-                        //.setEntries(1, logEntry)
                         .setLeaderCommit(commitIndex)
                         .build();
                 stubMap.get(port).appendEntries(req, new StreamObserver<>() {
@@ -179,29 +262,24 @@ public class Node {
                         }
                     }
                     @Override
-                    public void onError(Throwable throwable) {}
-
+                    public void onError(Throwable throwable) {
+                        logger.error(throwable.getMessage());
+                    }
                     @Override
                     public void onCompleted() {}
                 });
             }
-        }, 0, 50, TimeUnit.MILLISECONDS);
+        }, 0, heartbeatTime, TimeUnit.MILLISECONDS);
+    }
+    // Separating for clearer code
+    // Extracting which index belongs to node port from nextIndex, and getting correct previous index and term
+    private int getPrevLogIndex(int port) {
+        return log.getPreviousLogIndex(nextIndex.get(portNodeIdMap.get(port)));
+    }
+    private int getPrevLogTerm(int port) {
+        return log.getPreviousLogTerm(nextIndex.get(portNodeIdMap.get(port)));
     }
 
-    public int getLastLogIndex() {
-        int lastIndex = 0;
-        if(!log.isEmpty()){
-            lastIndex = (int) log.getLast().getIndex();
-        }
-        return lastIndex;
-    }
-    public int getLastLogTerm() {
-        int lastTerm = 0;
-        if(!log.isEmpty()){
-            lastTerm = (int) log.getLast().getTerm();
-        }
-        return lastTerm;
-    }
     public int getPort() { return port; }
     public int getTerm() { return this.currentTerm; }
     public void setCurrentTerm(int currentTerm) { this.currentTerm = currentTerm; }
@@ -210,8 +288,13 @@ public class Node {
     public NodeState getNodeState() { return nodeState; }
     public void setNodeState(NodeState nodeState) { this.nodeState = nodeState; }
     public Object getStateChange() { return stateChange; }
+    public void setLeaderPort(int leaderPort) { this.leaderPort = leaderPort; }
+    public int getLeaderPort() { return this.leaderPort; }
+    public void addReplicatedLog (LogEntry entry) { this.log.add(entry); }
+    public boolean checkIfPrevLogMatches (int term, int index) { return this.log.checkIfPrevLogMatches(term, index); }
 
     public void shutdown() {
+        server.shutdownNow();
         heartbeatScheduler.shutdownNow();
         timeoutScheduler.shutdown();
         task.cancel(true);

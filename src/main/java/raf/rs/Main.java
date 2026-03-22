@@ -27,8 +27,6 @@ public class Main {
                     "raf.rs.node.NodeMain",
                     String.valueOf(i)
             );
-
-
             pb.redirectInput(new File("io/input/input" + i + ".txt"));
             pb.redirectOutput(new File("io/output/output" + i + ".txt"));
             pb.redirectError(new File("io/error/error" + i + ".txt"));
