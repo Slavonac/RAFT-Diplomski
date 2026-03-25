@@ -1,6 +1,8 @@
 raft-cluster/target/
 node_modules/
-raft-cluster/io/
+raft-cluster/io/*
+frontend/.env
+raft-gateway/.env
 
 ### IntelliJ IDEA (full folder) ###
 .idea/

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const API_URL = 'http://localhost:8080/message'
+const API_URL = import.meta.env.VITE_API_URL
 const POLL_INTERVAL = 2000
 
 function generateId() {
@@ -80,9 +80,9 @@ export default function ChatPage() {
 
     // Optimistically add message to the list as pending
     setMessages(prev => [...prev, message])
-
+    const url = `${API_URL}/message`;
     try {
-      await fetch(API_URL, {
+      await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message),

@@ -1,0 +1,25 @@
+services:
+  raft-cluster:
+    build: ./raft-cluster
+    container_name: raft-cluster
+    ports:
+      - "9000-9004:9000-9004"
+
+  raft-gateway:
+    build: ./raft-gateway
+    container_name: raft-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - RAFT_CLUSTER_HOST=raft-cluster
+      - RAFT_CLUSTER_PORT=9000
+    depends_on:
+      - raft-cluster
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - raft-gateway

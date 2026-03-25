@@ -18,7 +18,7 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
     @Override
     public void appendEntries(AppendEntriesReq request, StreamObserver<AppendEntriesRes> responseObserver) {
         node.resetElectionTimeout();
-        node.setLeaderPort((int) request.getLeaderId());
+        node.setLeaderPort(node.addressFromNodeId(request.getLeaderId()));
         node.setCurrentTerm((int) request.getTerm());
         synchronized (node.getStateChange()) {
             if (node.getNodeState().equals(NodeState.LEADER) && request.getTerm() > node.getTerm()) {
@@ -61,19 +61,19 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
         node.resetElectionTimeout();
         // New term, reset vote
         if (request.getTerm() != node.getTerm()) {
-            node.setVotedFor(-1);
+            node.setVotedFor("");
         }
         // Update term from a message
         node.setCurrentTerm((int) request.getTerm());
         // Already voted, send false
-        if(node.getVotedFor() != -1) {
+        if(!node.getVotedFor().isEmpty()) {
             logger.info(voteNode + " Voting false. Already voted for: " + node.getVotedFor() + " in term: " + node.getTerm());
             responseObserver.onNext(builder.setTerm(node.getTerm()).setVoteGranted(false).build());
             responseObserver.onCompleted();
             return;
         }
         // TODO: Glasati ne ako se log poklapa lose
-        node.setVotedFor((int) request.getCandidateId());
+        node.setVotedFor(node.addressFromNodeId(request.getCandidateId()));
         logger.info(voteNode + " Voting true. Node " + node.getVotedFor() + " term: " + node.getTerm());
         responseObserver.onNext(builder.setTerm(node.getTerm()).setVoteGranted(true).build());
         responseObserver.onCompleted();

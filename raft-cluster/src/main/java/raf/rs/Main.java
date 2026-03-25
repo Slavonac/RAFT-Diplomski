@@ -6,11 +6,13 @@ import raf.rs.RPC.RAFTGrpc;
 import raf.rs.RPC.StopReq;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
-import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
 
         String classpath = System.getProperty("java.class.path");
         Properties props = new Properties();
@@ -18,9 +20,8 @@ public class Main {
             props.load(in);
         }
         int numOfNodes = Integer.parseInt(props.getProperty("nodes"));
-
+        List<Process> processes = new ArrayList<>();
         for (int i = 0; i < numOfNodes; i++) {
-
             ProcessBuilder pb = new ProcessBuilder(
                     "java",
                     "-cp", classpath,
@@ -30,21 +31,22 @@ public class Main {
             pb.redirectInput(new File("io/input/input" + i + ".txt"));
             pb.redirectOutput(new File("io/output/output" + i + ".txt"));
             pb.redirectError(new File("io/error/error" + i + ".txt"));
-            pb.start();
+            processes.add(pb.start());
         }
-        boolean run = true;
-        while (run) {
-            Scanner sc = new Scanner(System.in);
-            String line = sc.nextLine();
-            if (line.equals("stop")){
-                for (int i = 0; i < numOfNodes; i++){
-                    ManagedChannel mc = ManagedChannelBuilder.forAddress("localhost", Integer.parseInt(props.getProperty("node" + i))).usePlaintext().build();
-                    RAFTGrpc.RAFTBlockingStub stub = RAFTGrpc.newBlockingStub(mc);
-                    System.out.println(stub.stop(StopReq.newBuilder().build()).getMessage());
+
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (int i = 0; i < numOfNodes; i++) {
+                try {
+                    ManagedChannel mc = ManagedChannelBuilder
+                            .forAddress(props.getProperty("node" + i).split(":")[0], Integer.parseInt(props.getProperty("node" + i).split(":")[1]))
+                            .usePlaintext().build();
+                    RAFTGrpc.newBlockingStub(mc).stop(StopReq.newBuilder().build());
                     mc.shutdownNow();
-                }
-                break;
+                } catch (Exception ignored) {}
             }
-        }
+        }));
+
+        Thread.currentThread().join();
     }
 }
