@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const API_URL = 'http://localhost:3000/api/messages'
+const API_URL = 'http://localhost:8080/message'
 const POLL_INTERVAL = 2000
 
 function generateId() {
