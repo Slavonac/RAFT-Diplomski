@@ -70,9 +70,11 @@ public class Node {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        clusterSize = Integer.parseInt(props.getProperty("nodes"));
+        String nodesEnv = System.getenv("NODES");
+        clusterSize = nodesEnv != null ? Integer.parseInt(nodesEnv) : Integer.parseInt(props.getProperty("nodes"));
         for (int i = 0; i < clusterSize; i++) {
-            String nodeAddres = props.getProperty("node" + i);
+            String envAddr = System.getenv("NODE_" + i);
+            String nodeAddres = envAddr != null ? envAddr : props.getProperty("node" + i);
             portNodeIdMap.put(nodeAddres, i);
             if(i == nodeNum) {
                 nodeId = i;
@@ -85,7 +87,6 @@ public class Node {
                 stubMap.put(nodeAddres, stub);
             }
         }
-        System.out.println(Integer.parseInt(myAddress.split(":")[1]) + "   " );
         server = ServerBuilder.forPort(Integer.parseInt(myAddress.split(":")[1])).addService(new NodeRPCService(this)).build().start();
         // Node values
         nextIndex = new ArrayList<>();
@@ -246,7 +247,7 @@ public class Node {
             for (String address : stubMap.keySet()) {
                 AppendEntriesReq req = AppendEntriesReq.newBuilder()
                         .setTerm(currentTerm)
-                        .setLeaderId(this.portNodeIdMap.get(address))
+                        .setLeaderId(this.portNodeIdMap.get(myAddress))
                         .setPrevLogIndex(0)
                         .setPrevLogTerm(0)
                         .setLeaderCommit(commitIndex)

@@ -82,7 +82,7 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
     @Override
     public void clientCommand(Command request, StreamObserver<ClientMessageRes> responseObserver) {
         if (!node.getNodeState().equals(NodeState.LEADER)) {
-            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo(node.getLeaderPort() + "").setSuccess(false).build());
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo(node.getLeaderPort()).setSuccess(false).build());
             responseObserver.onCompleted();
             return;
         }

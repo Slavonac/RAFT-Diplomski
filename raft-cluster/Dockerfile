@@ -9,5 +9,5 @@ FROM eclipse-temurin:23-jdk
 WORKDIR /app
 COPY --from=build /app/target/RaftDiplomski-1.0-SNAPSHOT.jar app.jar
 COPY io ./io
-EXPOSE 9000 9001 9002 9003 9004
-ENTRYPOINT ["java", "-jar", "app.jar"]
+EXPOSE 9000
+ENTRYPOINT ["sh", "-c", "java -cp app.jar raf.rs.node.NodeMain ${NODE_ID}"]

@@ -1,9 +1,88 @@
 services:
-  raft-cluster:
+  node0:
     build: ./raft-cluster
-    container_name: raft-cluster
+    container_name: node0
+    hostname: node0
+    environment:
+      - NODE_ID=0
+      - NODES=5
+      - NODE_0=node0:9000
+      - NODE_1=node1:9001
+      - NODE_2=node2:9002
+      - NODE_3=node3:9003
+      - NODE_4=node4:9004
     ports:
-      - "9000-9004:9000-9004"
+      - "9000:9000"
+    networks:
+      - raft-net
+
+  node1:
+    build: ./raft-cluster
+    container_name: node1
+    hostname: node1
+    environment:
+      - NODE_ID=1
+      - NODES=5
+      - NODE_0=node0:9000
+      - NODE_1=node1:9001
+      - NODE_2=node2:9002
+      - NODE_3=node3:9003
+      - NODE_4=node4:9004
+    ports:
+      - "9001:9001"
+    networks:
+      - raft-net
+
+  node2:
+    build: ./raft-cluster
+    container_name: node2
+    hostname: node2
+    environment:
+      - NODE_ID=2
+      - NODES=5
+      - NODE_0=node0:9000
+      - NODE_1=node1:9001
+      - NODE_2=node2:9002
+      - NODE_3=node3:9003
+      - NODE_4=node4:9004
+    ports:
+      - "9002:9002"
+    networks:
+      - raft-net
+
+  node3:
+    build: ./raft-cluster
+    container_name: node3
+    hostname: node3
+    environment:
+      - NODE_ID=3
+      - NODES=5
+      - NODE_0=node0:9000
+      - NODE_1=node1:9001
+      - NODE_2=node2:9002
+      - NODE_3=node3:9003
+      - NODE_4=node4:9004
+    ports:
+      - "9003:9003"
+    networks:
+      - raft-net
+
+  node4:
+    build: ./raft-cluster
+    container_name: node4
+    hostname: node4
+    environment:
+      - NODE_ID=4
+      - NODES=5
+      - NODE_0=node0:9000
+      - NODE_1=node1:9001
+      - NODE_2=node2:9002
+      - NODE_3=node3:9003
+      - NODE_4=node4:9004
+    ports:
+      - "9004:9004"
+    networks:
+      - raft-net
 
   raft-gateway:
     build: ./raft-gateway
@@ -11,10 +90,16 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - RAFT_CLUSTER_HOST=raft-cluster
+      - RAFT_CLUSTER_HOST=node0
       - RAFT_CLUSTER_PORT=9000
     depends_on:
-      - raft-cluster
+      - node0
+      - node1
+      - node2
+      - node3
+      - node4
+    networks:
+      - raft-net
 
   frontend:
     build: ./frontend
@@ -23,3 +108,9 @@ services:
       - "80:80"
     depends_on:
       - raft-gateway
+    networks:
+      - raft-net
+
+networks:
+  raft-net:
+    driver: bridge
