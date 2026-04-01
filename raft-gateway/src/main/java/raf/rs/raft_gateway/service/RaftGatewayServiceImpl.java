@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import raf.rs.AddCommand;
 import raf.rs.ClientMessageRes;
 import raf.rs.Command;
+import raf.rs.PauseReq;
+import raf.rs.ResumeReq;
 import raf.rs.RAFTGrpc;
 import raf.rs.raft_gateway.dto.MessageRequest;
 
@@ -17,12 +19,15 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
     private String raftClusterHost;
     private RAFTGrpc.RAFTBlockingStub stub;
     private int raftClusterPort;
+    private String[] nodeAddresses;
 
     public RaftGatewayServiceImpl(
             @Value("${raft.cluster.host}") String raftClusterHost,
-            @Value("${raft.cluster.port}") int raftClusterPort) {
+            @Value("${raft.cluster.port}") int raftClusterPort,
+            @Value("${raft.cluster.nodes}") String raftClusterNodes) {
         this.raftClusterHost = raftClusterHost;
         this.raftClusterPort = raftClusterPort;
+        this.nodeAddresses = raftClusterNodes.split(",");
         ManagedChannel channel = ManagedChannelBuilder.forAddress(raftClusterHost, raftClusterPort)
                 .usePlaintext()
                 .build();
@@ -58,5 +63,35 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
         }
 
         return response.getSuccess();
+    }
+
+    @Override
+    public boolean pauseNode(int nodeId) {
+        try {
+            String[] parts = nodeAddresses[nodeId].trim().split(":");
+            ManagedChannel channel = ManagedChannelBuilder
+                    .forAddress(parts[0], Integer.parseInt(parts[1]))
+                    .usePlaintext()
+                    .build();
+            RAFTGrpc.newBlockingStub(channel).pause(PauseReq.newBuilder().build());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean resumeNode(int nodeId) {
+        try {
+            String[] parts = nodeAddresses[nodeId].trim().split(":");
+            ManagedChannel channel = ManagedChannelBuilder
+                    .forAddress(parts[0], Integer.parseInt(parts[1]))
+                    .usePlaintext()
+                    .build();
+            RAFTGrpc.newBlockingStub(channel).resume(ResumeReq.newBuilder().build());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

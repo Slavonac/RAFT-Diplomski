@@ -31,9 +31,12 @@ public class Log {
             return 0;
         return (int)log.get(nextIndex - 2).getTerm();
     }
+    public int getLastEntryIndex() { return log.isEmpty() ? 0 : (int) log.getLast().getIndex(); }
+    public int getLastEntryTerm() { return log.isEmpty() ? 0 : (int) log.getLast().getTerm(); }
 
     public boolean checkIfPrevLogMatches(int term, int index) {
-        return true;
+        if (log.isEmpty()) return true;
+        return log.getLast().getIndex() == index && log.getLast().getTerm() == term;
     }
     public int getSize() { return this.log.size(); }
     public int getTerm(int n) { return (int)this.log.get(n - 1).getTerm(); }

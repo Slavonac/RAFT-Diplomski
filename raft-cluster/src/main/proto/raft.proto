@@ -7,6 +7,8 @@ service RAFT {
   rpc RequestVote(RequestVoteReq) returns (RequestVoteRes);
   rpc ClientCommand (Command) returns (ClientMessageRes);
   rpc Stop(StopReq) returns (StopRes);
+  rpc Pause(PauseReq) returns (PauseRes);
+  rpc Resume(ResumeReq) returns (ResumeRes);
 }
 message AppendEntriesReq {
   int64 term = 1;
@@ -32,7 +34,6 @@ message AddCommand {
   string message   = 3;
   string timestamp = 4;
 }
-
 message AppendEntriesRes {
   int64 term = 1;
   bool success = 2;
@@ -55,3 +56,7 @@ message ClientMessageRes{
   bool   success = 1;
   string info    = 2;
 }
+message PauseReq  {}
+message PauseRes  {}
+message ResumeReq {}
+message ResumeRes {}

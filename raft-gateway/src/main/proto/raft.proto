@@ -5,6 +5,8 @@ option java_multiple_files = true;
 service RAFT {
   rpc ClientCommand (Command) returns (ClientMessageRes);
   rpc Stop(StopReq) returns (StopRes);
+  rpc Pause(PauseReq) returns (PauseRes);
+  rpc Resume(ResumeReq) returns (ResumeRes);
 }
 message Command {
   oneof type {
@@ -25,3 +27,7 @@ message ClientMessageRes{
   bool   success = 1;
   string info    = 2;
 }
+message PauseReq  {}
+message PauseRes  {}
+message ResumeReq {}
+message ResumeRes {}
