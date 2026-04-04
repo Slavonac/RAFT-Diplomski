@@ -18,7 +18,7 @@ public class PostMessageController {
 
     @PostMapping("/message")
     public ResponseEntity<String> addMessage(@RequestBody MessageRequest request) {
-        boolean success = service.addMessage(request);
-        return success ? ResponseEntity.ok("ok") : ResponseEntity.internalServerError().body("rejected");
+        String message = service.addMessage(request);
+        return message.isEmpty() ? ResponseEntity.ok("ok") : ResponseEntity.internalServerError().body(message);
     }
 }

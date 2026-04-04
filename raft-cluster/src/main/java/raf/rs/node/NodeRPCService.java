@@ -24,29 +24,40 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
 
     @Override
     public void appendEntries(AppendEntriesReq request, StreamObserver<AppendEntriesRes> responseObserver) {
-        // If candidate or leader received append entries from higher term, revert to follower
-        if (node.getNodeState().equals(NodeState.LEADER) && node.getNodeState().equals(NodeState.CANDIDATE) && request.getTerm() > node.getTerm()) {
+        if (request.getTerm() < node.getTerm()){
+            responseObserver.onNext(AppendEntriesRes.newBuilder().setSuccess(false).setTerm(node.getTerm()).build());
+            responseObserver.onCompleted();
+            return;
+        }
+        // If leader received append entries from higher term, revert to follower
+        if (node.getNodeState().equals(NodeState.LEADER) && request.getTerm() > node.getTerm()) {
             synchronized (node.getStateChange()) {
                 node.setNodeState(NodeState.FOLLOWER);
                 node.pauseHearbeat();
                 logger.info("Recognizing higher leader term " + request.getTerm() + " > " + node.getTerm() + ". Reverting to follower state");
             }
         }
+        if (node.getNodeState().equals(NodeState.CANDIDATE) && request.getTerm() >= node.getTerm()){
+            synchronized (node.getStateChange()) {
+                node.setNodeState(NodeState.FOLLOWER);
+                logger.info("Im candidate, but the leader is elected in term: " + request.getTerm() + ". Reverting to follower state");
+            }
+        }
         // Set values from leader
+        if (request.getTerm() > node.getTerm()) {
+            logger.info("Updating term from {} to {} via AppendEntries from leader {}", node.getTerm(), request.getTerm(), request.getLeaderId());
+        }
         node.setLeaderPort(node.addressFromNodeId(request.getLeaderId()));
         node.setCurrentTerm((int) request.getTerm());
         node.resetElectionTimeout();
-        // Get entry info, check if node has the same previous entry as the leader, respond accordingly
-        LogEntry entry = request.getEntry();
-        long prevIndex = request.getPrevLogIndex();
-        long prevTerm = request.getPrevLogTerm();
 
+        // Checking if the previous index and term matches
         synchronized (appendLogLock) {
-            if (node.checkIfPrevLogMatches((int) prevTerm, (int) prevIndex)){
-                if (request.hasEntry()){
+            if (node.checkIfPrevLogMatches((int) request.getPrevLogTerm(), (int) request.getPrevLogIndex())){
+                if (request.getEntryCount() > 0){
                     logger.info("Replicating log...");
-                    node.addReplicatedLog(entry);
                 }
+                node.replicateLogEntries((int) request.getPrevLogIndex(), request.getEntryList());
                 responseObserver.onNext(AppendEntriesRes.newBuilder().setTerm(node.getTerm()).setSuccess(true).build());
                 responseObserver.onCompleted();
             } else {
@@ -70,6 +81,7 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
         }
         // Candidate with log that is not up to date doesn't get the vote
         if(!isUpToDate(request.getLastLogTerm(), request.getLastLogIndex())) {
+            logger.info(voteNode + " Voting false... Log is not up to date");
             responseObserver.onNext(builder.setTerm(node.getTerm()).setVoteGranted(false).build());
             responseObserver.onCompleted();
             return;
@@ -116,8 +128,24 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             return;
         }
         logger.info("Command received...");
-        node.addEntry(request);
-        responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("zz").setSuccess(true).build());
+        int entryIndex = node.addEntry(request);
+        if (node.waitForCommit(entryIndex, 5000)) {
+            logger.info("Entry " + entryIndex + " committed successfully");
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("Committed at index " + entryIndex).setSuccess(true).build());
+        } else {
+            logger.warn("Entry " + entryIndex + " commit timed out");
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("TO").setSuccess(false).build());
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getAllMessages(MessageRequest request, StreamObserver<AllMessages> responseObserver) {
+        if (!this.node.getNodeState().equals(NodeState.LEADER)) {
+            logger.warn("This node is not a leader, can't send messages");
+            return;
+        }
+        responseObserver.onNext(AllMessages.newBuilder().addAllMessage(node.getMessages()).build());
         responseObserver.onCompleted();
     }
 

@@ -3,6 +3,7 @@ node_modules/
 raft-cluster/io/*
 frontend/.env
 raft-gateway/.env
+raft-cluster/CLAUDE.md
 
 ### IntelliJ IDEA (full folder) ###
 .idea/

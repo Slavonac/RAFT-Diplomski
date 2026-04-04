@@ -53,6 +53,7 @@ public class Node {
 
     private NodeState nodeState = NodeState.FOLLOWER;
     private final Object stateChange = new Object();
+    private final Object commitLock = new Object();
 
     public static void start(Integer nodeNum) throws IOException {
         new Node(nodeNum);
@@ -103,7 +104,6 @@ public class Node {
             nextIndex.add(1);
             matchIndex.add(0);
         }
-       // logger.info(Arrays.toString(nextIndex.toArray()) + " " + Arrays.toString(matchIndex.toArray()));
         commitIndex = 0;
         lastApplied = 0;
         currentTerm = 0;
@@ -139,81 +139,76 @@ public class Node {
             task.cancel(true);
         startTimeoutTimer();
     }
-    // Optimization needed, can't do this whole synchronized
-    public synchronized void addEntry(Command command) {
+    public synchronized int addEntry(Command command) {
         LogEntry entry = LogEntry.newBuilder()
                 .setTerm(this.getTerm())
                 .setIndex(this.log.getIndexForNextEntry())
                 .setCommand(Command.newBuilder().setAddCommand(command.getAddCommand())).build();
-        this.log.add(entry);
-        matchIndex.set(nodeId, matchIndex.get(nodeId) + 1);
-        logger.info("Adding command to the log");
-        appendEntry(entry);
-    }
-    private void appendEntry(LogEntry entry) {
+        this.log.add(List.of(entry));
+        int entryIndex = log.getLastEntryIndex();
+        matchIndex.set(nodeId, entryIndex);
+        logger.info("Adding command to the log at index " + entryIndex);
         for (String address : stubMap.keySet()) {
-            AppendEntriesReq req = AppendEntriesReq.newBuilder()
-                    .setTerm(currentTerm)
-                    .setLeaderId(portNodeIdMap.get(address))
-                    .setLeaderCommit(this.commitIndex)
-                    .setPrevLogTerm(getPrevLogTerm(address))
-                    .setPrevLogIndex(getPrevLogIndex(address))
-                    .setEntry(entry)
-                    .build();
-            Context.current().fork().run(() -> stubMap.get(address).appendEntries(req, new StreamObserver<>() {
-                @Override
-                public void onNext(AppendEntriesRes res) {
-                    if (res.getSuccess()) {
-                        logger.info("Successfully replicated log to node: " + address);
-                        int nodeNumer = portNodeIdMap.get(address);
-                        nextIndex.set(nodeNumer, nextIndex.get(nodeNumer) + 1);
-                        matchIndex.set(nodeNumer, matchIndex.get(nodeNumer) + 1);
-                        updateCommitIndex(); 
-                    } else {
-                        logger.info("Unsuccessfully replicated log");
-                        int index = portNodeIdMap.get(address);
-                        nextIndex.set(index, nextIndex.get(index) - 1);
+            replicateTo(address);
+        }
+        return entryIndex;
+    }
+    private void replicateTo(String address) {
+        int followerIndex = portNodeIdMap.get(address);
+        int prevLogIdx = getPrevLogIndex(address);
+        int prevLogTrm = getPrevLogTerm(address);
+        List<LogEntry> entries = log.getEntriesFrom(nextIndex.get(followerIndex));
+
+        AppendEntriesReq req = AppendEntriesReq.newBuilder()
+                .setTerm(currentTerm)
+                .setLeaderId(portNodeIdMap.get(myAddress))
+                .setLeaderCommit(commitIndex)
+                .setPrevLogIndex(prevLogIdx)
+                .setPrevLogTerm(prevLogTrm)
+                .addAllEntry(entries)
+                .build();
+
+        Context.current().fork().run(() -> stubMap.get(address).appendEntries(req, new StreamObserver<>() {
+            @Override
+            public void onNext(AppendEntriesRes res) {
+                synchronized (stateChange) {
+                    if (res.getTerm() > currentTerm) {
+                        currentTerm = (int) res.getTerm();
+                        nodeState = NodeState.FOLLOWER;
+                        heartBeatPaused.set(true);
+                        logger.info("Cant append entries to a higher term node: " + address + ". Reverting to follower.");
+                        resetElectionTimeout();
+                        return;
                     }
                 }
-                @Override
-                public void onError(Throwable throwable) {
-                    System.out.println(throwable.getMessage());
+                if (res.getSuccess()) {
+                    if (!entries.isEmpty()) {
+                        int lastSentIndex = (int) entries.get(entries.size() - 1).getIndex();
+                        nextIndex.set(followerIndex, lastSentIndex + 1);
+                        matchIndex.set(followerIndex, lastSentIndex);
+                        logger.info("Replicated to " + address + " up to index " + lastSentIndex);
+                        updateCommitIndex();
+                    }
+                } else {
+                    int current = nextIndex.get(followerIndex);
+                    if (current > 1) {
+                        nextIndex.set(followerIndex, current - 1);
+                        logger.info("Decrementing nextIndex for " + address + " to " + (current - 1));
+                    }
                 }
-                @Override
-                public void onCompleted() {}
-            }));
-        }
+            }
+            @Override
+            public void onError(Throwable throwable) {}
+            @Override
+            public void onCompleted() {}
+        }));
     }
     private void activateHeartbeatScheduler() {
         heartBeatPaused.set(false);
         heartbeatScheduler.scheduleAtFixedRate(() -> {
-            if (heartBeatPaused.get()) return;
+            if (heartBeatPaused.get() || !nodeState.equals(NodeState.LEADER)) return;
             for (String address : stubMap.keySet()) {
-                AppendEntriesReq req = AppendEntriesReq.newBuilder()
-                        .setTerm(currentTerm)
-                        .setLeaderId(this.portNodeIdMap.get(myAddress))
-                        .setPrevLogIndex(this.log.getLastEntryIndex())
-                        .setPrevLogTerm(this.log.getLastEntryTerm())
-                        .setLeaderCommit(commitIndex)
-                        .build();
-                stubMap.get(address).appendEntries(req, new StreamObserver<>() {
-                    @Override
-                    public void onNext(AppendEntriesRes res) {
-                        synchronized (stateChange) {
-                            if (res.getTerm() > currentTerm){
-                                nodeState = NodeState.FOLLOWER;
-                                heartBeatPaused.set(true);
-                                logger.info("There is a node with higher term " + res.getTerm() + " > " + currentTerm + ". reverting to follower");
-                            }
-                        }
-                    }
-                    @Override
-                    public void onError(Throwable throwable) {
-                       
-                    }
-                    @Override
-                    public void onCompleted() {}
-                });
+                replicateTo(address);
             }
         }, 0, heartbeatTime, TimeUnit.MILLISECONDS);
     }
@@ -234,7 +229,7 @@ public class Node {
                         voteResult(res.getVoteGranted(), (int) res.getTerm(), address);
                     }
                     @Override
-                    public void onError(Throwable throwable) { System.err.println("RPC vote request failed " + throwable.getMessage()); }
+                    public void onError(Throwable throwable) {}
                     @Override
                     public void onCompleted() {}
                 });
@@ -267,29 +262,58 @@ public class Node {
         }
         logger.info("Leader elected");
         this.leaderPort = this.myAddress;
-        for (int i = 0; i < stubMap.size(); i++) {
-            // Replace with next log index
-            nextIndex.set(i, 1);
-            matchIndex.set(i, 0);
+        for (String address : stubMap.keySet()) {
+            int followerIdx = portNodeIdMap.get(address);
+            nextIndex.set(followerIdx, log.getLastEntryIndex() + 1);
+            matchIndex.set(followerIdx, 0);
         }
         activateHeartbeatScheduler();
     }
 
     public synchronized void updateCommitIndex() {
-        int count = 0;
-        for (int i = 0; i < matchIndex.size() - 1;  i++) {
-            if (matchIndex.get(i) > commitIndex) count++;
+        boolean advanced = false;
+        for (int n = commitIndex + 1; n <= log.getLastEntryIndex(); n++) {
+            if (log.getTermAtIndex(n) != currentTerm) continue;
+            int count = 1; // count self (leader)
+            for (String address : stubMap.keySet()) {
+                int followerIdx = portNodeIdMap.get(address);
+                if (matchIndex.get(followerIdx) >= n) count++;
+            }
+            if (count > clusterSize / 2) {
+                commitIndex = n;
+                logger.info("Commit index advanced to " + n + ". Applying to state machine.");
+                stateMachine.applyCommand(log.getCommand(n));
+                lastApplied = n;
+                advanced = true;
+            } else {
+                break;
+            }
         }
-        if (count > (matchIndex.size() / 2) + 1){
-            commitIndex++;
-            logger.info("Commit index increaded...Applying to state machine");
-            stateMachine.applyCommand(log.getCommand(commitIndex));
-            logger.info("Applied to the state machine");
-            lastApplied = commitIndex;
+        if (advanced) {
+            synchronized (commitLock) {
+                commitLock.notifyAll();
+            }
         }
     }
 
-    // Separating for clearer code
+    public boolean waitForCommit(int entryIndex, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        synchronized (commitLock) {
+            while (commitIndex < entryIndex) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) return false;
+                try {
+                    commitLock.wait(remaining);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Separating for cleaner code
     // Extracting which index belongs to node port from nextIndex, and getting correct previous index and term
     private int getPrevLogIndex(String address) {
         return log.getPreviousLogIndex(nextIndex.get(portNodeIdMap.get(address)));
@@ -307,7 +331,7 @@ public class Node {
     }
     public void pause() {
         pauseInterceptor.setPaused(true);
-        if (!task.isDone()) task.cancel(false);
+        if (!task.isDone()) task.cancel(true);
         heartBeatPaused.set(true);
         logger.info("Node {} paused (simulating failure)", nodeId);
     }
@@ -315,11 +339,6 @@ public class Node {
     public void resume() {
         pauseInterceptor.setPaused(false);
         heartBeatPaused.set(false);
-        synchronized (stateChange) {
-            nodeState = NodeState.FOLLOWER;
-            votedFor = "";
-        }
-        startTimeoutTimer();
         logger.info("Node {} resumed", nodeId);
     }
 
@@ -332,6 +351,7 @@ public class Node {
             this.managedChannelMap.get(port).shutdownNow();
         }
     }
+    public List<Message> getMessages() { return this.stateMachine.getMessages(); }
     public String getPort() { return myAddress; }
     public int getTerm() { return this.currentTerm; }
     public void setCurrentTerm(int currentTerm) { this.currentTerm = currentTerm; }
@@ -342,8 +362,13 @@ public class Node {
     public Object getStateChange() { return stateChange; }
     public void setLeaderPort(String leaderPort) { this.leaderPort = leaderPort; }
     public String getLeaderPort() { return this.leaderPort; }
-    public void addReplicatedLog (LogEntry entry) { this.log.add(entry); }
-    public boolean checkIfPrevLogMatches (int term, int index) { return this.log.checkIfPrevLogMatches(term, index); }
+    public void replicateLogEntries(int prevLogIndex, List<LogEntry> entries) {
+        log.truncateFrom(prevLogIndex + 1);
+        if (!entries.isEmpty()) {
+            log.add(entries);
+        }
+    }
+    public boolean checkIfPrevLogMatches (int prevLogTerm, int prevLogIndex) { return this.log.checkIfPrevLogMatches(prevLogTerm, prevLogIndex); }
     public int getLastEntryTerm() { return log.getLastEntryTerm(); }
     public int getLastEntryIndex() { return log.getLastEntryIndex(); }
     public void pauseHearbeat() { this.heartBeatPaused.set(true); }

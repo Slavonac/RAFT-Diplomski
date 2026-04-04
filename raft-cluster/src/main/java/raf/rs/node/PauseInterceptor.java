@@ -24,6 +24,7 @@ public class PauseInterceptor implements ServerInterceptor {
 
         String methodName = call.getMethodDescriptor().getFullMethodName();
 
+
         if (paused.get() && !ALLOWED_WHEN_PAUSED.contains(methodName)) {
             call.close(Status.UNAVAILABLE.withDescription("Node is paused"), new Metadata());
             return new ServerCall.Listener<>() {};

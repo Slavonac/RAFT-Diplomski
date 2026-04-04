@@ -6,6 +6,7 @@ service RAFT {
   rpc AppendEntries(AppendEntriesReq) returns (AppendEntriesRes);
   rpc RequestVote(RequestVoteReq) returns (RequestVoteRes);
   rpc ClientCommand (Command) returns (ClientMessageRes);
+  rpc GetAllMessages (MessageRequest) returns (AllMessages);
   rpc Stop(StopReq) returns (StopRes);
   rpc Pause(PauseReq) returns (PauseRes);
   rpc Resume(ResumeReq) returns (ResumeRes);
@@ -15,7 +16,7 @@ message AppendEntriesReq {
   int64 leaderId = 2;
   int64 prevLogIndex = 3;
   int64 prevLogTerm = 4;
-  optional LogEntry entry = 5;
+  repeated LogEntry entry = 5;
   int64 leaderCommit = 6;
 }
 message LogEntry {
@@ -26,6 +27,7 @@ message LogEntry {
 message Command {
   oneof type {
     AddCommand addCommand = 1;
+    DeleteCommand deleteCommand = 2;
   }
 }
 message AddCommand {
@@ -33,6 +35,21 @@ message AddCommand {
   string user      = 2;
   string message   = 3;
   string timestamp = 4;
+}
+message DeleteCommand {
+  int32 messageId = 1;
+  string user = 2;
+}
+message MessageRequest {}
+message AllMessages {
+  repeated Message message = 1;
+}
+message Message {
+  int32  messageId = 1;
+  string user      = 2;
+  string message   = 3;
+  string timestamp = 4;
+  bool deleted = 5;
 }
 message AppendEntriesRes {
   int64 term = 1;
