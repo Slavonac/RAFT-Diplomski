@@ -50,6 +50,7 @@ message Message {
   string message   = 3;
   string timestamp = 4;
   bool deleted = 5;
+  int32  logIndex = 6;
 }
 message AppendEntriesRes {
   int64 term = 1;

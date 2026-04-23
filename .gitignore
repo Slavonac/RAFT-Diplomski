@@ -4,6 +4,8 @@ raft-cluster/io/*
 frontend/.env
 raft-gateway/.env
 raft-cluster/CLAUDE.md
+raft-tester
+CLAUDE.MD
 
 ### IntelliJ IDEA (full folder) ###
 .idea/

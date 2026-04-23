@@ -50,10 +50,15 @@ public class Node {
 
     private final AtomicInteger voteCount = new AtomicInteger(0);
     private static final Logger logger = LoggerFactory.getLogger(Node.class);
+    private boolean logEnabled = false;
 
     private NodeState nodeState = NodeState.FOLLOWER;
     private final Object stateChange = new Object();
     private final Object commitLock = new Object();
+
+    private void log(String msg) {
+        if (logEnabled) logger.info(msg);
+    }
 
     public static void start(Integer nodeNum) throws IOException {
         new Node(nodeNum);
@@ -97,6 +102,7 @@ public class Node {
                 .addService(new NodeRPCService(this))
                 .build()
                 .start();
+        logEnabled = System.getenv("LOG_ENBALED").equals("true");
         // Node values
         nextIndex = new ArrayList<>();
         matchIndex = new ArrayList<>();
@@ -129,7 +135,7 @@ public class Node {
                 this.votedFor = this.myAddress;
                 this.voteCount.set(1);
             }
-            logger.info("NODE TIMEOUT CurrTerm:" + this.currentTerm);
+            log("NODE TIMEOUT CurrTerm:" + this.currentTerm);
             resetElectionTimeout();
             requestVote();
         }, timeoutTime + r.nextInt(150), TimeUnit.MILLISECONDS);
@@ -143,11 +149,12 @@ public class Node {
         LogEntry entry = LogEntry.newBuilder()
                 .setTerm(this.getTerm())
                 .setIndex(this.log.getIndexForNextEntry())
-                .setCommand(Command.newBuilder().setAddCommand(command.getAddCommand())).build();
+                .setCommand(command)
+                .build();
         this.log.add(List.of(entry));
         int entryIndex = log.getLastEntryIndex();
         matchIndex.set(nodeId, entryIndex);
-        logger.info("Adding command to the log at index " + entryIndex);
+        log("Adding command to the log at index " + entryIndex);
         for (String address : stubMap.keySet()) {
             replicateTo(address);
         }
@@ -176,7 +183,7 @@ public class Node {
                         currentTerm = (int) res.getTerm();
                         nodeState = NodeState.FOLLOWER;
                         heartBeatPaused.set(true);
-                        logger.info("Cant append entries to a higher term node: " + address + ". Reverting to follower.");
+                        log("Cant append entries to a higher term node: " + address + ". Reverting to follower.");
                         resetElectionTimeout();
                         return;
                     }
@@ -186,14 +193,14 @@ public class Node {
                         int lastSentIndex = (int) entries.get(entries.size() - 1).getIndex();
                         nextIndex.set(followerIndex, lastSentIndex + 1);
                         matchIndex.set(followerIndex, lastSentIndex);
-                        logger.info("Replicated to " + address + " up to index " + lastSentIndex);
+                        log("Replicated to " + address + " up to index " + lastSentIndex);
                         updateCommitIndex();
                     }
                 } else {
                     int current = nextIndex.get(followerIndex);
                     if (current > 1) {
                         nextIndex.set(followerIndex, current - 1);
-                        logger.info("Decrementing nextIndex for " + address + " to " + (current - 1));
+                        log("Decrementing nextIndex for " + address + " to " + (current - 1));
                     }
                 }
             }
@@ -222,7 +229,7 @@ public class Node {
                         .setLastLogIndex(log.getLastEntryIndex())
                         .setLastLogTerm(log.getLastEntryTerm())
                         .setCandidateId(portNodeIdMap.get(myAddress)).build();
-                logger.info("Requesting vote for node: " + address);
+                log("Requesting vote for node: " + address);
                 stubMap.get(address).requestVote(req, new StreamObserver<>() {
                     @Override
                     public void onNext(RequestVoteRes res) {
@@ -240,15 +247,15 @@ public class Node {
         if (nodeState != NodeState.CANDIDATE)
             return;
         if (term > this.currentTerm) {
-            logger.info("Node: " + address + " is higher term: " + term + " Old term is: " + this.currentTerm + " reverting to Follower");
+            log("Node: " + address + " is higher term: " + term + " Old term is: " + this.currentTerm + " reverting to Follower");
             synchronized (stateChange) {
                 this.nodeState = NodeState.FOLLOWER;
                 this.currentTerm = term;
             }
             return;
         }
-        if (voteGranted && term == this.currentTerm) {
-            logger.info("Vote granted by node: " + address + " in term: " + term);
+        if (voteGranted) {
+            log("Vote granted by node: " + address + " in term: " + term);
             if (this.voteCount.incrementAndGet() > (stubMap.size() + 1) / 2) {
                 becomeLeader();
             }
@@ -260,7 +267,7 @@ public class Node {
                 return;
             this.nodeState = NodeState.LEADER;
         }
-        logger.info("Leader elected");
+        log("Leader elected");
         this.leaderPort = this.myAddress;
         for (String address : stubMap.keySet()) {
             int followerIdx = portNodeIdMap.get(address);
@@ -271,18 +278,19 @@ public class Node {
     }
 
     public synchronized void updateCommitIndex() {
+        if (log.getLastEntryTerm() < currentTerm) return;
         boolean advanced = false;
         for (int n = commitIndex + 1; n <= log.getLastEntryIndex(); n++) {
             if (log.getTermAtIndex(n) != currentTerm) continue;
-            int count = 1; // count self (leader)
+            int count = 1;
             for (String address : stubMap.keySet()) {
                 int followerIdx = portNodeIdMap.get(address);
                 if (matchIndex.get(followerIdx) >= n) count++;
             }
             if (count > clusterSize / 2) {
                 commitIndex = n;
-                logger.info("Commit index advanced to " + n + ". Applying to state machine.");
-                stateMachine.applyCommand(log.getCommand(n));
+                log("Commit index advanced to " + n + ". Applying to state machine.");
+                stateMachine.applyCommand(log.getCommand(n), n);
                 lastApplied = n;
                 advanced = true;
             } else {
@@ -313,6 +321,15 @@ public class Node {
         return true;
     }
 
+    public void commitEntriesToCommitIndex(long leaderCommit) {
+        synchronized (commitLock) {
+            while (lastApplied < leaderCommit) {
+                int next = ++lastApplied;
+                stateMachine.applyCommand(log.getCommand(next), next);
+            }
+        }
+    }
+
     // Separating for cleaner code
     // Extracting which index belongs to node port from nextIndex, and getting correct previous index and term
     private int getPrevLogIndex(String address) {
@@ -333,13 +350,13 @@ public class Node {
         pauseInterceptor.setPaused(true);
         if (!task.isDone()) task.cancel(true);
         heartBeatPaused.set(true);
-        logger.info("Node {} paused (simulating failure)", nodeId);
+        log("Node " + nodeId + " paused (simulating failure)");
     }
 
     public void resume() {
         pauseInterceptor.setPaused(false);
         heartBeatPaused.set(false);
-        logger.info("Node {} resumed", nodeId);
+        log("Node " + nodeId + " resumed");
     }
 
     public void shutdown() {

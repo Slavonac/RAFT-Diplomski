@@ -5,12 +5,15 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import raf.rs.*;
 import raf.rs.AddCommand;
+import raf.rs.AllMessages;
 import raf.rs.ClientMessageRes;
 import raf.rs.Command;
+import raf.rs.DeleteCommand;
 import raf.rs.PauseReq;
-import raf.rs.ResumeReq;
 import raf.rs.RAFTGrpc;
+import raf.rs.ResumeReq;
 import raf.rs.raft_gateway.dto.MessageRequest;
 
 import java.util.ArrayList;
@@ -56,18 +59,33 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
 
     @Override
     public String addMessage(MessageRequest request) {
-        String currentAddress = raftClusterHost + ":" + raftClusterPort;
-
         AddCommand addCommand = AddCommand.newBuilder()
                 .setMessageId(request.getId().hashCode())
                 .setUser(request.getUsername())
                 .setMessage(request.getContent())
                 .setTimestamp(request.getTimestamp())
                 .build();
+        Command command = Command.newBuilder().setAddCommand(addCommand).build();
+        return sendCommand(command);
+    }
 
-        Command command = Command.newBuilder()
-                .setAddCommand(addCommand)
+    @Override
+    public String deleteMessage(String messageId) {
+        int idAsInt;
+        try {
+            idAsInt = Integer.parseInt(messageId);
+        } catch (NumberFormatException e) {
+            return "Invalid message id";
+        }
+        DeleteCommand deleteCommand = DeleteCommand.newBuilder()
+                .setMessageId(idAsInt)
                 .build();
+        Command command = Command.newBuilder().setDeleteCommand(deleteCommand).build();
+        return sendCommand(command);
+    }
+
+    private String sendCommand(Command command) {
+        String currentAddress = raftClusterHost + ":" + raftClusterPort;
 
         ClientMessageRes response = null;
         try {
@@ -75,11 +93,8 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
         } catch (io.grpc.StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Status.Code.UNAVAILABLE)) {
                 List<String> candidates = new ArrayList<>(nodeAddresses);
-                System.out.println("Candidates: " + candidates);
-                System.out.println("Dead nodes " + deadNodes);
                 candidates.removeAll(deadNodes);
                 if (candidates.isEmpty()) {
-                    System.out.println("All nodes are dead zzz");
                     return "No nodes available";
                 }
                 currentAddress = candidates.get(new Random().nextInt(candidates.size())).trim();
@@ -90,7 +105,7 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
         }
 
         if (response == null)
-            return "Error with sending a message";
+            return "Error with sending a command";
 
         if (!response.getSuccess()) {
             if (response.getInfo().equals("TO"))
@@ -128,5 +143,31 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @Override
+    public int getLeaderIndex() {
+        String leaderAddress = raftClusterHost + ":" + raftClusterPort;
+        int idx = nodeAddresses.indexOf(leaderAddress.trim());
+        if (idx != -1) return idx;
+        for (int i = 0; i < nodeAddresses.size(); i++) {
+            if (nodeAddresses.get(i).trim().equals(leaderAddress.trim())) return i;
+        }
+        return -1;
+    }
+
+    @Override
+    public AllMessages getAllMessages() {
+        List<String> candidates = new ArrayList<>(nodeAddresses);
+        candidates.removeAll(deadNodes);
+        for (String address : candidates) {
+            try {
+                AllMessages result = stubFor(address).getAllMessages(raf.rs.MessageRequest.newBuilder().build());
+                raftClusterHost = address.trim().split(":")[0];
+                raftClusterPort = Integer.parseInt(address.trim().split(":")[1]);
+                return result;
+            } catch (Exception ignored) {}
+        }
+        return AllMessages.newBuilder().build();
     }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -8,6 +8,19 @@ export default function AdminPage() {
   const [pausedNodes, setPausedNodes] = useState(new Set())
   const [loadingNodes, setLoadingNodes] = useState(new Set())
   const [error, setError] = useState(null)
+  const [leaderId, setLeaderId] = useState(null)
+
+  useEffect(() => {
+    const fetchLeader = () => {
+      fetch(`${API_URL}/node/leader`)
+        .then(r => r.json())
+        .then(data => setLeaderId(data.leaderId))
+        .catch(() => setLeaderId(null))
+    }
+    fetchLeader()
+    const interval = setInterval(fetchLeader, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const toggleNode = async (nodeId) => {
     if (loadingNodes.has(nodeId)) return
@@ -55,23 +68,31 @@ export default function AdminPage() {
         {Array.from({ length: NODE_COUNT }, (_, i) => {
           const isPaused = pausedNodes.has(i)
           const isLoading = loadingNodes.has(i)
+          const isLeader = leaderId === i
           return (
-            <button
-              key={i}
-              onClick={() => toggleNode(i)}
-              disabled={isLoading}
-              className={[
-                'w-24 h-24 rounded-full font-bold text-white text-sm transition-all select-none',
-                isPaused
-                  ? 'bg-red-500 hover:bg-red-600 active:bg-red-700'
-                  : 'bg-green-500 hover:bg-green-600 active:bg-green-700',
-                isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer shadow-md hover:shadow-lg',
-              ].join(' ')}
-            >
-              {isLoading ? '...' : `Node ${i}`}
-              <br />
-              <span className="text-xs font-normal">{isPaused ? 'paused' : 'running'}</span>
-            </button>
+            <div key={i} className="flex flex-col items-center gap-1">
+              <button
+                onClick={() => toggleNode(i)}
+                disabled={isLoading}
+                className={[
+                  'w-24 h-24 rounded-full font-bold text-white text-sm transition-all select-none',
+                  isPaused
+                    ? 'bg-red-500 hover:bg-red-600 active:bg-red-700'
+                    : 'bg-green-500 hover:bg-green-600 active:bg-green-700',
+                  isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer shadow-md hover:shadow-lg',
+                  isLeader ? 'ring-4 ring-yellow-400 ring-offset-2' : '',
+                ].join(' ')}
+              >
+                {isLoading ? '...' : `Node ${i}`}
+                <br />
+                <span className="text-xs font-normal">{isPaused ? 'paused' : 'running'}</span>
+              </button>
+              {isLeader && (
+                <span className="text-xs font-semibold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full">
+                  LEADER
+                </span>
+              )}
+            </div>
           )
         })}
       </div>

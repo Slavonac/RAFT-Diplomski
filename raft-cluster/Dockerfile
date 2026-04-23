@@ -7,6 +7,7 @@ RUN mvn package -DskipTests -q
 
 FROM eclipse-temurin:23-jdk
 WORKDIR /app
+ENV LOG_ENBALED=true
 COPY --from=build /app/target/RaftDiplomski-1.0-SNAPSHOT.jar app.jar
 COPY io ./io
 EXPOSE 9000

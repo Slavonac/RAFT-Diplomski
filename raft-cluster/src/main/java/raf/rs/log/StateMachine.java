@@ -18,7 +18,7 @@ public class StateMachine {
         messages = new ArrayList<>();
     }
 
-    public synchronized void applyCommand(Command command) {
+    public synchronized void applyCommand(Command command, int logIndex) {
         if (command.hasAddCommand()) {
             AddCommand add = command.getAddCommand();
             Message message = Message.newBuilder()
@@ -27,6 +27,7 @@ public class StateMachine {
                     .setDeleted(false)
                     .setTimestamp(add.getTimestamp())
                     .setUser(add.getUser())
+                    .setLogIndex(logIndex)
                     .build();
             messages.add(message);
         } else if (command.hasDeleteCommand()) {

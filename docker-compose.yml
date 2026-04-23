@@ -88,7 +88,7 @@ services:
     build: ./raft-gateway
     container_name: raft-gateway
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     environment:
       - RAFT_CLUSTER_HOST=node0
       - RAFT_CLUSTER_PORT=9000
@@ -106,7 +106,7 @@ services:
     build: ./frontend
     container_name: frontend
     ports:
-      - "80:80"
+      - "0.0.0.0:80:80"
     depends_on:
       - raft-gateway
     networks:
