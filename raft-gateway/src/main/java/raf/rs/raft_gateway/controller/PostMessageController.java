@@ -28,8 +28,9 @@ public class PostMessageController {
     @PostMapping("/message")
     public ResponseEntity<?> addMessage(@RequestBody MessageRequest request) {
         String result = service.addMessage(request);
-        if (result.isEmpty()) {
-            return ResponseEntity.ok(Map.of("id", request.getId().hashCode()));
+        if (result.startsWith("OK:")) {
+            long commitMs = Long.parseLong(result.substring(3));
+            return ResponseEntity.ok(Map.of("id", request.getId().hashCode(), "commitMs", commitMs));
         }
         return ResponseEntity.internalServerError().body(Map.of("error", result));
     }

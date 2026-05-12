@@ -132,10 +132,12 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             return;
         }
         log("Command received...");
+        long commitStart = System.nanoTime();
         int entryIndex = node.addEntry(request);
         if (node.waitForCommit(entryIndex, 5000)) {
-            log("Entry " + entryIndex + " committed successfully");
-            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("Committed at index " + entryIndex).setSuccess(true).build());
+            long commitMs = (System.nanoTime() - commitStart) / 1_000_000;
+            log("Entry " + entryIndex + " committed successfully in " + commitMs + "ms");
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("OK:" + commitMs).setSuccess(true).build());
         } else {
             log("Entry " + entryIndex + " commit timed out");
             responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("TO").setSuccess(false).build());

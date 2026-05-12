@@ -118,7 +118,10 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
             response = stubFor(leaderAddress).clientCommand(command);
         }
 
-        return "";
+        if (response != null && response.getSuccess() && response.getInfo().startsWith("OK:"))
+            return response.getInfo();
+
+        return "OK:0";
     }
 
     @Override
