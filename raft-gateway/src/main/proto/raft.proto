@@ -6,6 +6,7 @@ service RAFT {
   rpc ClientCommand (Command) returns (ClientMessageRes);
   rpc Stop(StopReq) returns (StopRes);
   rpc GetAllMessages (MessageRequest) returns (AllMessages);
+  rpc ClearMessages (ClearMessagesReq) returns (ClearMessagesRes);
   rpc Pause(PauseReq) returns (PauseRes);
   rpc Resume(ResumeReq) returns (ResumeRes);
 }
@@ -49,3 +50,5 @@ message PauseReq  {}
 message PauseRes  {}
 message ResumeReq {}
 message ResumeRes {}
+message ClearMessagesReq {}
+message ClearMessagesRes { bool success = 1; }

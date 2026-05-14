@@ -70,4 +70,11 @@ public class PostMessageController {
         }
         return ResponseEntity.internalServerError().body(Map.of("error", result));
     }
+
+    @DeleteMapping("/message")
+    public ResponseEntity<?> clearMessages() {
+        boolean success = service.clearMessages();
+        if (success) return ResponseEntity.ok(Map.of("cleared", true));
+        return ResponseEntity.internalServerError().body(Map.of("error", "Failed to clear messages"));
+    }
 }

@@ -7,6 +7,7 @@ service RAFT {
   rpc RequestVote(RequestVoteReq) returns (RequestVoteRes);
   rpc ClientCommand (Command) returns (ClientMessageRes);
   rpc GetAllMessages (MessageRequest) returns (AllMessages);
+  rpc ClearMessages (ClearMessagesReq) returns (ClearMessagesRes);
   rpc Stop(StopReq) returns (StopRes);
   rpc Pause(PauseReq) returns (PauseRes);
   rpc Resume(ResumeReq) returns (ResumeRes);
@@ -78,3 +79,5 @@ message PauseReq  {}
 message PauseRes  {}
 message ResumeReq {}
 message ResumeRes {}
+message ClearMessagesReq {}
+message ClearMessagesRes { bool success = 1; }

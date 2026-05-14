@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import raf.rs.*;
 import raf.rs.AddCommand;
 import raf.rs.AllMessages;
+import raf.rs.ClearMessagesReq;
 import raf.rs.ClientMessageRes;
 import raf.rs.Command;
 import raf.rs.DeleteCommand;
@@ -122,6 +123,25 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
             return response.getInfo();
 
         return "OK:0";
+    }
+
+    @Override
+    public boolean clearMessages() {
+        String leaderAddress = raftClusterHost + ":" + raftClusterPort;
+        try {
+            stubFor(leaderAddress.trim()).clearMessages(ClearMessagesReq.newBuilder().build());
+            return true;
+        } catch (Exception e) {
+            List<String> candidates = new ArrayList<>(nodeAddresses);
+            candidates.removeAll(deadNodes);
+            for (String address : candidates) {
+                try {
+                    stubFor(address.trim()).clearMessages(ClearMessagesReq.newBuilder().build());
+                    return true;
+                } catch (Exception ignored) {}
+            }
+        }
+        return false;
     }
 
     @Override

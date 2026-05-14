@@ -49,6 +49,7 @@ public class Node {
     private final StateMachine stateMachine;
 
     private final AtomicInteger voteCount = new AtomicInteger(0);
+    private final AtomicBoolean commandsLocked = new AtomicBoolean(false);
     private static final Logger logger = LoggerFactory.getLogger(Node.class);
     private boolean logEnabled = false;
 
@@ -146,6 +147,7 @@ public class Node {
         startTimeoutTimer();
     }
     public synchronized int addEntry(Command command) {
+        if (commandsLocked.get()) return -1;
         LogEntry entry = LogEntry.newBuilder()
                 .setTerm(this.getTerm())
                 .setIndex(this.log.getIndexForNextEntry())
@@ -160,6 +162,28 @@ public class Node {
         }
         return entryIndex;
     }
+
+    public void clearAllMessages() {
+        commandsLocked.set(true);
+        try {
+            stateMachine.clearMessages();
+            for (String address : stubMap.keySet()) {
+                Context.current().fork().run(() ->
+                    stubMap.get(address).clearMessages(
+                        ClearMessagesReq.newBuilder().build(),
+                        new StreamObserver<ClearMessagesRes>() {
+                            @Override public void onNext(ClearMessagesRes r) {}
+                            @Override public void onError(Throwable t) {}
+                            @Override public void onCompleted() {}
+                        })
+                );
+            }
+        } finally {
+            commandsLocked.set(false);
+        }
+    }
+
+    public boolean isCommandsLocked() { return commandsLocked.get(); }
     private void replicateTo(String address) {
         int followerIndex = portNodeIdMap.get(address);
         int prevLogIdx = getPrevLogIndex(address);
@@ -254,7 +278,7 @@ public class Node {
             }
             return;
         }
-        if (voteGranted) {
+        if (voteGranted && this.currentTerm == term) {
             log("Vote granted by node: " + address + " in term: " + term);
             if (this.voteCount.incrementAndGet() > (stubMap.size() + 1) / 2) {
                 becomeLeader();
@@ -369,6 +393,7 @@ public class Node {
         }
     }
     public List<Message> getMessages() { return this.stateMachine.getMessages(); }
+    public raf.rs.log.StateMachine getStateMachine() { return this.stateMachine; }
     public String getPort() { return myAddress; }
     public int getTerm() { return this.currentTerm; }
     public void setCurrentTerm(int currentTerm) { this.currentTerm = currentTerm; }

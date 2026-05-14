@@ -9,6 +9,8 @@ import raf.rs.RPC.PauseReq;
 import raf.rs.RPC.PauseRes;
 import raf.rs.RPC.ResumeReq;
 import raf.rs.RPC.ResumeRes;
+import raf.rs.RPC.ClearMessagesReq;
+import raf.rs.RPC.ClearMessagesRes;
 
 public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
 
@@ -131,9 +133,19 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             responseObserver.onCompleted();
             return;
         }
+        if (node.isCommandsLocked()) {
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("LOCKED").setSuccess(false).build());
+            responseObserver.onCompleted();
+            return;
+        }
         log("Command received...");
         long commitStart = System.nanoTime();
         int entryIndex = node.addEntry(request);
+        if (entryIndex == -1) {
+            responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("LOCKED").setSuccess(false).build());
+            responseObserver.onCompleted();
+            return;
+        }
         if (node.waitForCommit(entryIndex, 5000)) {
             long commitMs = (System.nanoTime() - commitStart) / 1_000_000;
             log("Entry " + entryIndex + " committed successfully in " + commitMs + "ms");
@@ -142,6 +154,17 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             log("Entry " + entryIndex + " commit timed out");
             responseObserver.onNext(ClientMessageRes.newBuilder().setInfo("TO").setSuccess(false).build());
         }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void clearMessages(ClearMessagesReq request, StreamObserver<ClearMessagesRes> responseObserver) {
+        if (node.getNodeState().equals(NodeState.LEADER)) {
+            node.clearAllMessages();
+        } else {
+            node.getStateMachine().clearMessages();
+        }
+        responseObserver.onNext(ClearMessagesRes.newBuilder().setSuccess(true).build());
         responseObserver.onCompleted();
     }
 

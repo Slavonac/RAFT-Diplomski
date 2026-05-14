@@ -42,6 +42,10 @@ public class StateMachine {
         }
     }
 
+    public synchronized void clearMessages() {
+        messages.clear();
+    }
+
     public synchronized List<Message> getMessages () {
         return this.messages;
     }
