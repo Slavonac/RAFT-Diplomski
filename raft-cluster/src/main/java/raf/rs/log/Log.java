@@ -55,6 +55,10 @@ public class Log {
         log.subList(fromIndex - 1, log.size()).clear();
     }
 
+    public void clear() {
+        this.log.clear();
+    }
+
     public int getTermAtIndex(int index) {
         if (index < 1 || index > log.size()) return 0;
         return (int) log.get(index - 1).getTerm();

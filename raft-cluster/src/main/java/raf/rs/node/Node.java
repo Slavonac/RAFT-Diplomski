@@ -167,6 +167,7 @@ public class Node {
         commandsLocked.set(true);
         try {
             stateMachine.clearMessages();
+            clearLog();
             for (String address : stubMap.keySet()) {
                 Context.current().fork().run(() ->
                     stubMap.get(address).clearMessages(
@@ -180,6 +181,16 @@ public class Node {
             }
         } finally {
             commandsLocked.set(false);
+        }
+    }
+
+    public synchronized void clearLog() {
+        log.clear();
+        commitIndex = 0;
+        lastApplied = 0;
+        for (int i = 0; i < nextIndex.size(); i++) {
+            nextIndex.set(i, 1);
+            matchIndex.set(i, 0);
         }
     }
 

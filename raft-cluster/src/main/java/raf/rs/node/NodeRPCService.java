@@ -169,6 +169,7 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
             node.clearAllMessages();
         } else {
             node.getStateMachine().clearMessages();
+            node.clearLog();
         }
         responseObserver.onNext(ClearMessagesRes.newBuilder().setSuccess(true).build());
         responseObserver.onCompleted();
