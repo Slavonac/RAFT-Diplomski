@@ -11,6 +11,12 @@ import raf.rs.RPC.ResumeReq;
 import raf.rs.RPC.ResumeRes;
 import raf.rs.RPC.ClearMessagesReq;
 import raf.rs.RPC.ClearMessagesRes;
+import raf.rs.RPC.NodeLogReq;
+import raf.rs.RPC.NodeLogRes;
+import raf.rs.RPC.LogEntryInfo;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
 
@@ -196,6 +202,40 @@ public class NodeRPCService extends RAFTGrpc.RAFTImplBase {
     public void resume(ResumeReq request, StreamObserver<ResumeRes> responseObserver) {
         node.resume();
         responseObserver.onNext(ResumeRes.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getNodeLog(NodeLogReq request, StreamObserver<NodeLogRes> responseObserver) {
+        int commitIndex = node.getCommitIndex();
+        List<LogEntry> entries = node.getLogEntries();
+        List<LogEntryInfo> infos = new ArrayList<>();
+        for (LogEntry e : entries) {
+            Command cmd = e.getCommand();
+            String type, user, content;
+            if (cmd.hasAddCommand()) {
+                type = "ADD";
+                user = cmd.getAddCommand().getUser();
+                content = cmd.getAddCommand().getMessage();
+            } else {
+                type = "DEL";
+                user = "";
+                content = String.valueOf(cmd.getDeleteCommand().getMessageId());
+            }
+            infos.add(LogEntryInfo.newBuilder()
+                    .setIndex((int) e.getIndex())
+                    .setTerm((int) e.getTerm())
+                    .setCommandType(type)
+                    .setUser(user)
+                    .setContent(content)
+                    .setCommitted(e.getIndex() <= commitIndex)
+                    .build());
+        }
+        responseObserver.onNext(NodeLogRes.newBuilder()
+                .addAllEntries(infos)
+                .setCommitIndex(commitIndex)
+                .setNodeState(node.getNodeState().name())
+                .build());
         responseObserver.onCompleted();
     }
 }

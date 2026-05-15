@@ -9,6 +9,7 @@ service RAFT {
   rpc ClearMessages (ClearMessagesReq) returns (ClearMessagesRes);
   rpc Pause(PauseReq) returns (PauseRes);
   rpc Resume(ResumeReq) returns (ResumeRes);
+  rpc GetNodeLog (NodeLogReq) returns (NodeLogRes);
 }
 message Command {
   oneof type {
@@ -52,3 +53,17 @@ message ResumeReq {}
 message ResumeRes {}
 message ClearMessagesReq {}
 message ClearMessagesRes { bool success = 1; }
+message NodeLogReq {}
+message LogEntryInfo {
+  int32  index       = 1;
+  int32  term        = 2;
+  string commandType = 3;
+  string user        = 4;
+  string content     = 5;
+  bool   committed   = 6;
+}
+message NodeLogRes {
+  repeated LogEntryInfo entries     = 1;
+  int32                 commitIndex = 2;
+  string                nodeState   = 3;
+}

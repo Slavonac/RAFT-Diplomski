@@ -63,6 +63,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [contextMenu, setContextMenu] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
   const messagesEndRef = useRef(null)
   const scrollContainerRef = useRef(null)
   const isAtBottomRef = useRef(true)
@@ -172,6 +173,15 @@ export default function ChatPage() {
     }
   }
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    setMessages([])
+    lastSeenIndexRef.current = 0
+    await fetchSnapshot()
+    setRefreshing(false)
+  }, [refreshing, fetchSnapshot])
+
   const handleSend = () => {
     const trimmed = input.trim()
     if (!trimmed) return
@@ -251,8 +261,9 @@ export default function ChatPage() {
           <h1 className="text-xl font-bold text-gray-900">Chat</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchSnapshot}
-              className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className={`text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed text-xl px-2 py-1 transition-colors${refreshing ? ' animate-spin' : ''}`}
               title="Refresh messages"
             >
               ↻

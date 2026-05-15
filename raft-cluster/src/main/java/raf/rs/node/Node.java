@@ -413,5 +413,7 @@ public class Node {
     public boolean checkIfPrevLogMatches (int prevLogTerm, int prevLogIndex) { return this.log.checkIfPrevLogMatches(prevLogTerm, prevLogIndex); }
     public int getLastEntryTerm() { return log.getLastEntryTerm(); }
     public int getLastEntryIndex() { return log.getLastEntryIndex(); }
+    public int getCommitIndex() { return this.commitIndex; }
+    public List<LogEntry> getLogEntries() { return this.log.getEntriesFrom(1); }
     public void pauseHearbeat() { this.heartBeatPaused.set(true); }
 }

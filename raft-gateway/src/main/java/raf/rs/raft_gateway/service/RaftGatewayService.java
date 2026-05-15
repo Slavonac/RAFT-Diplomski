@@ -1,6 +1,7 @@
 package raf.rs.raft_gateway.service;
 
 import raf.rs.AllMessages;
+import raf.rs.NodeLogRes;
 import raf.rs.raft_gateway.dto.MessageRequest;
 
 public interface RaftGatewayService {
@@ -11,4 +12,5 @@ public interface RaftGatewayService {
     boolean resumeNode(int nodeId);
     AllMessages getAllMessages();
     int getLeaderIndex();
+    NodeLogRes getNodeLog(int nodeId);
 }

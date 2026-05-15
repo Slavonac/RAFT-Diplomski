@@ -12,6 +12,8 @@ import raf.rs.ClearMessagesReq;
 import raf.rs.ClientMessageRes;
 import raf.rs.Command;
 import raf.rs.DeleteCommand;
+import raf.rs.NodeLogReq;
+import raf.rs.NodeLogRes;
 import raf.rs.PauseReq;
 import raf.rs.RAFTGrpc;
 import raf.rs.ResumeReq;
@@ -166,6 +168,12 @@ public class RaftGatewayServiceImpl implements RaftGatewayService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @Override
+    public NodeLogRes getNodeLog(int nodeId) {
+        String address = nodeAddresses.get(nodeId).trim();
+        return stubFor(address).getNodeLog(NodeLogReq.newBuilder().build());
     }
 
     @Override

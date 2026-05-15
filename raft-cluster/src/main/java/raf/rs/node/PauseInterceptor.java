@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PauseInterceptor implements ServerInterceptor {
 
     private static final Set<String> ALLOWED_WHEN_PAUSED = Set.of(
-            "RAFT/Stop", "RAFT/Pause", "RAFT/Resume"
+            "RAFT/Stop", "RAFT/Pause", "RAFT/Resume", "RAFT/GetNodeLog"
     );
 
     private final AtomicBoolean paused = new AtomicBoolean(false);
