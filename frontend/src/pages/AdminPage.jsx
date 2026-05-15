@@ -69,6 +69,7 @@ export default function AdminPage() {
   const [clearSuccess, setClearSuccess] = useState(false)
   const [nodeLogs, setNodeLogs] = useState(Array(NODE_COUNT).fill(null))
   const [logsLoading, setLogsLoading] = useState(false)
+  const [consensusResult, setConsensusResult] = useState(null)
 
   useEffect(() => {
     if (!authenticated) return
@@ -148,6 +149,68 @@ export default function AdminPage() {
     }
   }
 
+  const checkConsensus = () => {
+    const maps = nodeLogs.map(n => {
+      if (!n?.entries) return {}
+      const m = {}
+      for (const e of n.entries) m[e.index] = e
+      return m
+    })
+
+    const commitIndices = nodeLogs.map(n => n?.commitIndex ?? 0)
+    const maxCommit = Math.max(...commitIndices)
+
+    const allIndices = new Set()
+    for (const m of maps) for (const idx of Object.keys(m)) allIndices.add(parseInt(idx))
+
+    const safetyViolations = []
+    const uncommittedDivergence = []
+
+    for (const idx of [...allIndices].sort((a, b) => a - b)) {
+      const present = maps
+        .map((m, nodeId) => ({ nodeId, entry: m[idx] ?? null }))
+        .filter(x => x.entry !== null)
+
+      const committed = present.filter(x => x.entry.committed)
+
+      // Safety: dva commitovana unosa na istom indeksu moraju biti isti
+      if (committed.length >= 2) {
+        const first = committed[0].entry
+        for (const { nodeId, entry } of committed.slice(1)) {
+          if (entry.commandType !== first.commandType ||
+              entry.content !== first.content ||
+              entry.user !== first.user) {
+            safetyViolations.push({
+              index: idx,
+              nodeA: committed[0].nodeId,
+              nodeB: nodeId,
+              entryA: `${first.commandType} ${first.user} ${first.content}`,
+              entryB: `${entry.commandType} ${entry.user} ${entry.content}`,
+            })
+          }
+        }
+      }
+
+      // Necomitovana divergencija: unosi postoje ali se razlikuju i nisu svi commitovani
+      if (present.length >= 2 && !present.every(x => x.entry.committed)) {
+        const first = present[0].entry
+        const differs = present.slice(1).some(x =>
+          x.entry.commandType !== first.commandType ||
+          x.entry.content !== first.content ||
+          x.entry.user !== first.user
+        )
+        if (differs) uncommittedDivergence.push({ index: idx, entries: present })
+      }
+    }
+
+    // Zaostajanje: commitIndex followera manji od maxCommit
+    const laggingNodes = nodeLogs
+      .map((n, i) => ({ nodeId: i, commitIndex: n?.commitIndex ?? 0, lag: maxCommit - (n?.commitIndex ?? 0) }))
+      .filter(x => x.lag > 0)
+
+    setConsensusResult({ safetyViolations, laggingNodes, uncommittedDivergence, maxCommit })
+  }
+
   const maxIndex = Math.max(
     0,
     ...nodeLogs.map(n => {
@@ -193,10 +256,60 @@ export default function AdminPage() {
           >
             {clearing ? 'Brisanje...' : 'Ukloni sve poruke'}
           </button>
+          <button
+            onClick={checkConsensus}
+            disabled={nodeLogs.every(n => n === null)}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-5 py-2 rounded-lg shadow transition-colors text-sm"
+          >
+            Proveri konsenzus
+          </button>
           {clearSuccess && (
             <span className="text-green-600 text-sm font-medium">Sve poruke su uspešno obrisane</span>
           )}
         </div>
+
+        {/* Consensus result */}
+        {consensusResult && (
+          <div className="flex flex-col gap-2">
+            {consensusResult.safetyViolations.length > 0 && (
+              <div className="bg-red-100 border border-red-400 text-red-800 rounded-lg px-4 py-3 text-sm">
+                <p className="font-bold mb-1">KRITIČNO — Safety violation ({consensusResult.safetyViolations.length})</p>
+                {consensusResult.safetyViolations.map((v, i) => (
+                  <p key={i} className="font-mono text-xs">
+                    Indeks {v.index}: Node {v.nodeA} [{v.entryA}] ≠ Node {v.nodeB} [{v.entryB}]
+                  </p>
+                ))}
+              </div>
+            )}
+            {consensusResult.laggingNodes.length > 0 && (
+              <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-lg px-4 py-3 text-sm">
+                <p className="font-bold mb-1">Zaostajanje (maxCommit = {consensusResult.maxCommit})</p>
+                {consensusResult.laggingNodes.map(n => (
+                  <p key={n.nodeId} className="font-mono text-xs">
+                    Node {n.nodeId}: commitIndex={n.commitIndex}, zaostaje za {n.lag} {n.lag === 1 ? 'unos' : 'unosa'}
+                  </p>
+                ))}
+              </div>
+            )}
+            {consensusResult.uncommittedDivergence.length > 0 && (
+              <div className="bg-blue-100 border border-blue-300 text-blue-800 rounded-lg px-4 py-3 text-sm">
+                <p className="font-bold mb-1">Necomitovana divergencija na {consensusResult.uncommittedDivergence.length} {consensusResult.uncommittedDivergence.length === 1 ? 'indeksu' : 'indeksa'}</p>
+                {consensusResult.uncommittedDivergence.map(d => (
+                  <p key={d.index} className="font-mono text-xs">
+                    Indeks {d.index}: {d.entries.map(e => `Node ${e.nodeId} [${e.entry.commandType} ${e.entry.user} ${e.entry.content}]`).join(' | ')}
+                  </p>
+                ))}
+              </div>
+            )}
+            {consensusResult.safetyViolations.length === 0 &&
+             consensusResult.laggingNodes.length === 0 &&
+             consensusResult.uncommittedDivergence.length === 0 && (
+              <div className="bg-green-100 border border-green-400 text-green-800 rounded-lg px-4 py-3 text-sm font-semibold">
+                Konsenzus je ispravan — svi commitovani unosi se slažu
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-100 border border-red-300 text-red-700 rounded px-4 py-2 text-sm">
