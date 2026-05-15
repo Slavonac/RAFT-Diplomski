@@ -264,8 +264,9 @@ export default function AdminPage() {
                         if (!entry) {
                           return <td key={nodeId} className="px-2 py-1 bg-gray-50" />
                         }
+                        const displayContent = entry.content === 'smile' ? '😊' : entry.content === 'wow' ? '😮' : entry.content
                         const label = entry.commandType === 'ADD'
-                          ? `ADD ${entry.user} ${entry.content}`
+                          ? `ADD ${entry.user} ${displayContent}`
                           : `DEL ${entry.content}`
                         return (
                           <td

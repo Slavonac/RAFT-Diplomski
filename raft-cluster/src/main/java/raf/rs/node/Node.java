@@ -347,7 +347,10 @@ public class Node {
 
     public void commitEntriesToCommitIndex(long leaderCommit) {
         synchronized (commitLock) {
-            while (lastApplied < leaderCommit) {
+            if (leaderCommit > commitIndex) {
+                commitIndex = (int) Math.min(leaderCommit, log.getLastEntryIndex());
+            }
+            while (lastApplied < commitIndex) {
                 int next = ++lastApplied;
                 stateMachine.applyCommand(log.getCommand(next), next);
             }

@@ -293,7 +293,7 @@ export default function ChatPage() {
                   <div className="max-w-[75%] rounded-2xl px-4 py-2 bg-red-100 border border-red-400 text-red-700 rounded-br-sm shadow-sm">
                     <p className="text-xs font-semibold mb-1">Server greška</p>
                     <p className="text-sm line-through opacity-60">
-                      {msg.content === 'skull' ? '😊' : msg.content === 'wow' ? '😮' : msg.content}
+                      {msg.content === 'smile' ? '😊' : msg.content === 'wow' ? '😮' : msg.content}
                     </p>
                     <span className="text-xs text-red-400">{formatTime(msg.timestamp)}</span>
                   </div>
@@ -320,7 +320,7 @@ export default function ChatPage() {
                   <p className={`text-sm leading-snug ${msg.deleted ? 'italic opacity-60' : ''}`}>
                     {msg.deleted
                       ? 'message is deleted by user'
-                      : msg.content === 'skull' ? '😊' : msg.content === 'wow' ? '😮' : msg.content}
+                      : msg.content === 'smile' ? '😊' : msg.content === 'wow' ? '😮' : msg.content}
                   </p>
                   <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
                     <span className={`text-xs ${isOwn ? 'text-red-200' : 'text-gray-400'}`}>
@@ -363,7 +363,7 @@ export default function ChatPage() {
             Send
           </button>
           <button
-            onClick={() => sendMessage('skull')}
+            onClick={() => sendMessage('smile')}
             className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
             title="Send smile"
           >
