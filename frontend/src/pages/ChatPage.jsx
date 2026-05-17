@@ -366,56 +366,32 @@ export default function ChatPage() {
         />
 
         {/* Action buttons */}
-        <div className="flex gap-2 pb-12 shrink-0">
+        <div className="flex flex-col gap-2 pb-12 shrink-0">
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-base transition-colors"
+            className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-base transition-colors"
           >
             Send
           </button>
-          <button
-            onClick={() => sendMessage('smile')}
-            className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
-            title="Send smile"
-          >
-            😊
-          </button>
-          <button
-            onClick={() => sendMessage('wow')}
-            className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
-            title="Send wow"
-          >
-            &#128558;
-          </button>
-          <button
-            onClick={() => sendMessage('skull')}
-            className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
-            title="Send skull"
-          >
-            💀
-          </button>
-          <button
-            onClick={() => sendMessage('heart')}
-            className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
-            title="Send heart"
-          >
-            ❤️
-          </button>
-          <button
-            onClick={() => sendMessage('fire')}
-            className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
-            title="Send fire"
-          >
-            🔥
-          </button>
-          <button
-            onClick={() => sendMessage('thumbsup')}
-            className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 rounded-xl py-3 px-5 text-xl transition-colors"
-            title="Send thumbs up"
-          >
-            👍
-          </button>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: 'smile',    emoji: '😊' },
+              { key: 'wow',      emoji: '😮' },
+              { key: 'skull',    emoji: '💀' },
+              { key: 'heart',    emoji: '❤️' },
+              { key: 'fire',     emoji: '🔥' },
+              { key: 'thumbsup', emoji: '👍' },
+            ].map(({ key, emoji }) => (
+              <button
+                key={key}
+                onClick={() => sendMessage(key)}
+                className="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 rounded-xl py-3 text-2xl transition-colors"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
 
       </div>
